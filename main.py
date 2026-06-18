@@ -7,6 +7,30 @@ import re
 import uvicorn
 import json
 
+def extract_page_data(html):
+    """Extract page data from HTML by finding the initial state JSON in script tag"""
+    soup = BeautifulSoup(html, 'html.parser')
+    for script in soup.find_all('script'):
+        if script.string and 'videoThumbProps' in script.string:
+            try:
+                json_match = re.search(r'\{.*\}', script.string, re.DOTALL)
+                if json_match:
+                    return json.loads(json_match.group())
+            except Exception:
+                continue
+    return None
+
+def format_duration(seconds):
+    """Convert seconds to MM:SS or HH:MM:SS"""
+    seconds = int(seconds)
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    else:
+        return f"{minutes:02d}:{secs:02d}"
+
 app = FastAPI()
 
 app.add_middleware(
@@ -26,6 +50,60 @@ HEADERS = {
 def home():
     return {"status": "success", "message": "xHamster Scraper API is running!"}
 
+def parse_video_list(html_or_soup):
+    """Helper: extract video list from page HTML using embedded JSON data."""
+    videos = []
+    try:
+        if isinstance(html_or_soup, str):
+            html = html_or_soup
+        else:
+            html = str(html_or_soup)
+        
+        page_data = extract_page_data(html)
+        
+        # Check multiple possible paths for videoThumbProps
+        video_thumb_props = None
+        if page_data:
+            # Path 1: for trending/newest/category pages
+            if ('layoutPage' in page_data and 
+                'videoListProps' in page_data['layoutPage'] and 
+                'videoThumbProps' in page_data['layoutPage']['videoListProps']):
+                video_thumb_props = page_data['layoutPage']['videoListProps']['videoThumbProps']
+            # Path 2: for search pages
+            elif ('searchResult' in page_data and 
+                  'videoThumbProps' in page_data['searchResult']):
+                video_thumb_props = page_data['searchResult']['videoThumbProps']
+            # Path 3: for individual video pages (related videos)
+            elif ('relatedVideosComponent' in page_data and 
+                  'videoTabInitialData' in page_data['relatedVideosComponent'] and
+                  'videoListProps' in page_data['relatedVideosComponent']['videoTabInitialData'] and
+                  'videoThumbProps' in page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']):
+                video_thumb_props = page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']['videoThumbProps']
+        
+        if video_thumb_props:
+            for item in video_thumb_props:
+                try:
+                    title = item.get('title', '')
+                    link = item.get('pageURL', '')
+                    image = item.get('imageURL', '') or item.get('thumbURL', '')
+                    duration_seconds = item.get('duration', 0)
+                    duration = format_duration(duration_seconds)
+                    video_id = str(item.get('id', ''))
+                    
+                    if link and title:
+                        videos.append({
+                            'id': video_id,
+                            'title': title,
+                            'link': link,
+                            'image': image,
+                            'duration': duration
+                        })
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return videos
+
 @app.get("/api/search")
 def search_videos(q: str = Query(..., description="Search query"), page: int = Query(1, description="Page number")):
     target_url = f"https://xhamster.com/search/video?q={q}&page={page}"
@@ -33,33 +111,7 @@ def search_videos(q: str = Query(..., description="Search query"), page: int = Q
     try:
         response = requests.get(target_url, headers=HEADERS)
         response.raise_for_status()
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
-        videos = []
-        
-        for video in soup.select('.video-thumb'):
-            try:
-                title_tag = video.select_one('.video-thumb-info__name')
-                title = title_tag.text.strip() if title_tag else 'No Title'
-                
-                link_tag = video.select_one('.video-thumb__image-container')
-                link = link_tag['href'] if link_tag else ''
-                
-                img_tag = video.select_one('img.thumb-image-container__image')
-                image = img_tag['src'] if img_tag and 'src' in img_tag.attrs else ''
-                
-                duration_tag = video.select_one('.thumb-image-container__duration')
-                duration = duration_tag.text.strip() if duration_tag else ''
-                
-                if link and title:
-                    videos.append({
-                        'title': title,
-                        'link': link,
-                        'image': image,
-                        'duration': duration
-                    })
-            except Exception as e:
-                continue
+        videos = parse_video_list(response.text)
                 
         return {
             "status": "success",
@@ -71,6 +123,63 @@ def search_videos(q: str = Query(..., description="Search query"), page: int = Q
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.get("/api/trending")
+def trending_videos(page: int = Query(1, description="Page number")):
+    target_url = f"https://xhamster.com/best/monthly?page={page}"
+    try:
+        response = requests.get(target_url, headers=HEADERS)
+        response.raise_for_status()
+        videos = parse_video_list(response.text)
+        return {"status": "success", "page": page, "results": videos}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/newest")
+def newest_videos(page: int = Query(1, description="Page number")):
+    target_url = f"https://xhamster.com/newest?page={page}"
+    try:
+        response = requests.get(target_url, headers=HEADERS)
+        response.raise_for_status()
+        videos = parse_video_list(response.text)
+        return {"status": "success", "page": page, "results": videos}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/categories")
+def get_categories():
+    target_url = "https://xhamster.com/categories"
+    try:
+        response = requests.get(target_url, headers=HEADERS)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        cats = []
+        seen = set()
+        # Try both selectors: itemContent-12755 and item-f658a (thumb items)
+        for a in soup.select('a[href*="/categories/"]'):
+            href = a.get('href', '')
+            # Skip photo categories, only video categories
+            if '/photos/' in href:
+                continue
+            name = a.text.strip()
+            if name and href and href not in seen:
+                seen.add(href)
+                slug = href.rstrip('/').split('/')[-1]
+                cats.append({"name": name, "slug": slug, "url": href})
+        return {"status": "success", "categories": cats}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/category/{slug}")
+def category_videos(slug: str, page: int = Query(1, description="Page number")):
+    target_url = f"https://xhamster.com/categories/{slug}?page={page}"
+    try:
+        response = requests.get(target_url, headers=HEADERS)
+        response.raise_for_status()
+        videos = parse_video_list(response.text)
+        return {"status": "success", "category": slug, "page": page, "results": videos}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.get("/api/video")
 def get_video_stream(url: str = Query(..., description="Full xHamster video URL")):
     try:
@@ -78,6 +187,16 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         response.raise_for_status()
         
         html = response.text
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Extract video title
+        title_tag = soup.select_one('h1.with-player-container')
+        if not title_tag:
+            title_tag = soup.select_one('h1')
+        video_title = title_tag.text.strip() if title_tag else 'Untitled Video'
+        
+        # Extract related videos (pass html)
+        related = parse_video_list(html)
         
         # Use regex to find direct MP4 and M3U8 streaming links in the HTML
         m3u8_pattern = r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*'
@@ -115,9 +234,11 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         
         return {
             "status": "success",
+            "title": video_title,
             "direct_url": direct_url,
             "proxy_url": proxy_url,
             "hls_proxy_url": hls_proxy_url,
+            "related": related[:12],
             "streams": {
                 "m3u8": m3u8_links,
                 "mp4": mp4_links

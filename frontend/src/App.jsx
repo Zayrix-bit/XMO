@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Watch from './pages/Watch';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
             <Route path="/watch/:id" element={<Watch />} />
           </Routes>
         </main>
+        <Footer />
       </div>
     </BrowserRouter>
   );
