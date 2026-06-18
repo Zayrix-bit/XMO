@@ -64,7 +64,7 @@ def parse_video_list(html_or_soup):
         # Check multiple possible paths for videoThumbProps
         video_thumb_props = None
         if page_data:
-            # Path 1: for trending/newest/category pages
+            # Path 1: for trending/newest pages
             if ('layoutPage' in page_data and 
                 'videoListProps' in page_data['layoutPage'] and 
                 'videoThumbProps' in page_data['layoutPage']['videoListProps']):
@@ -79,6 +79,11 @@ def parse_video_list(html_or_soup):
                   'videoListProps' in page_data['relatedVideosComponent']['videoTabInitialData'] and
                   'videoThumbProps' in page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']):
                 video_thumb_props = page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']['videoThumbProps']
+            # Path 4: for category pages
+            elif ('pagesCategoryComponent' in page_data and 
+                  'trendingVideoListProps' in page_data['pagesCategoryComponent'] and
+                  'videoThumbProps' in page_data['pagesCategoryComponent']['trendingVideoListProps']):
+                video_thumb_props = page_data['pagesCategoryComponent']['trendingVideoListProps']['videoThumbProps']
         
         if video_thumb_props:
             for item in video_thumb_props:
@@ -125,7 +130,7 @@ def search_videos(q: str = Query(..., description="Search query"), page: int = Q
 
 @app.get("/api/trending")
 def trending_videos(page: int = Query(1, description="Page number")):
-    target_url = f"https://xhamster.com/best/monthly?page={page}"
+    target_url = f"https://xhamster.com/best/monthly/{page}"
     try:
         response = requests.get(target_url, headers=HEADERS)
         response.raise_for_status()
@@ -136,7 +141,7 @@ def trending_videos(page: int = Query(1, description="Page number")):
 
 @app.get("/api/newest")
 def newest_videos(page: int = Query(1, description="Page number")):
-    target_url = f"https://xhamster.com/newest?page={page}"
+    target_url = f"https://xhamster.com/newest/{page}"
     try:
         response = requests.get(target_url, headers=HEADERS)
         response.raise_for_status()
@@ -171,7 +176,7 @@ def get_categories():
 
 @app.get("/api/category/{slug}")
 def category_videos(slug: str, page: int = Query(1, description="Page number")):
-    target_url = f"https://xhamster.com/categories/{slug}?page={page}"
+    target_url = f"https://xhamster.com/categories/{slug}/{page}"
     try:
         response = requests.get(target_url, headers=HEADERS)
         response.raise_for_status()
