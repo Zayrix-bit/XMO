@@ -22,6 +22,22 @@ export default function Home() {
   const [videos, setVideos] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [allCategories, setAllCategories] = useState([]);
+
+  // Fetch all categories once
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/api/categories');
+        if (response.data.status === 'success') {
+          setAllCategories(response.data.categories);
+        }
+      } catch (error) {
+        console.error("Failed to fetch categories:", error);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,20 +55,18 @@ export default function Home() {
           const slug = searchParams.get('slug');
           endpoint = `/api/category/${slug}?page=${page}`;
         } else if (tab === 'categories') {
-          endpoint = '/api/categories';
+          setCategories(allCategories);
+          setVideos([]);
+          setLoading(false);
+          return;
         } else {
           endpoint = `/api/trending?page=${page}`; // default
         }
 
         const response = await axios.get(`http://localhost:8000${endpoint}`);
         if (response.data.status === 'success') {
-          if (tab === 'categories') {
-            setCategories(response.data.categories);
-            setVideos([]);
-          } else {
-            setVideos(response.data.results);
-            setCategories([]);
-          }
+          setVideos(response.data.results);
+          setCategories([]);
         }
       } catch (error) {
         console.error("Failed to fetch data:", error);
@@ -61,7 +75,7 @@ export default function Home() {
     };
     
     fetchData();
-  }, [query, tab, page, searchParams]);
+  }, [query, tab, page, searchParams, allCategories]);
 
   const handlePageChange = (newPage) => {
     if (newPage < 1) return;
@@ -113,6 +127,26 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Limited Categories on Main Pages */}
+      {tab !== 'categories' && allCategories.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <FolderHeart className="text-purple-400" /> Popular Categories
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {allCategories.slice(0, 20).map((cat, i) => (
+              <Link
+                key={i}
+                to={`/?tab=category&slug=${cat.slug}`}
+                className="bg-white/5 hover:bg-[#ff2a5f]/20 border border-white/10 hover:border-[#ff2a5f]/50 px-4 py-2 rounded-full text-sm font-medium text-gray-300 hover:text-white transition-all"
+              >
+                {cat.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Categories Grid */}
       {tab === 'categories' && (
