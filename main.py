@@ -108,10 +108,16 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         if direct_url:
             proxy_url = f"/api/proxy?url={requests.utils.quote(direct_url, safe='')}"
         
+        # HLS proxy URL for multi-quality streaming
+        hls_proxy_url = None
+        if m3u8_links:
+            hls_proxy_url = f"/api/hls-proxy?url={requests.utils.quote(m3u8_links[0], safe='')}"
+        
         return {
             "status": "success",
             "direct_url": direct_url,
             "proxy_url": proxy_url,
+            "hls_proxy_url": hls_proxy_url,
             "streams": {
                 "m3u8": m3u8_links,
                 "mp4": mp4_links
@@ -148,6 +154,70 @@ def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"
             media_type=content_type,
             headers=headers
         )
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/hls-proxy")
+def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewriting")):
+    """Proxy M3U8 playlists and rewrite internal URLs to also go through our proxy."""
+    try:
+        proxy_headers = {
+            **HEADERS,
+            'Referer': 'https://xhamster.com/',
+            'Origin': 'https://xhamster.com',
+        }
+        
+        r = requests.get(url, headers=proxy_headers)
+        r.raise_for_status()
+        
+        content = r.text
+        content_type = r.headers.get('Content-Type', 'application/vnd.apple.mpegurl')
+        
+        # Check if this is an M3U8 playlist
+        if '.m3u8' in url or 'mpegurl' in content_type.lower() or content.strip().startswith('#EXTM3U'):
+            # Get the base URL for resolving relative paths
+            base_url = url.rsplit('/', 1)[0] + '/'
+            
+            rewritten_lines = []
+            for line in content.splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    # For EXT-X-MAP or similar tags that contain URIs
+                    if 'URI="' in line:
+                        import urllib.parse
+                        uri_match = re.search(r'URI="([^"]+)"', line)
+                        if uri_match:
+                            orig_uri = uri_match.group(1)
+                            if not orig_uri.startswith('http'):
+                                orig_uri = base_url + orig_uri
+                            proxied = f"/api/hls-proxy?url={requests.utils.quote(orig_uri, safe='')}"
+                            line = line.replace(uri_match.group(0), f'URI="http://localhost:8000{proxied}"')
+                    rewritten_lines.append(line)
+                else:
+                    # This is a URL line (segment or sub-playlist)
+                    segment_url = line
+                    if not segment_url.startswith('http'):
+                        segment_url = base_url + segment_url
+                    
+                    # Sub-playlists (.m3u8) go through hls-proxy, segments through regular proxy
+                    if '.m3u8' in segment_url:
+                        proxied = f"http://localhost:8000/api/hls-proxy?url={requests.utils.quote(segment_url, safe='')}"
+                    else:
+                        proxied = f"http://localhost:8000/api/proxy?url={requests.utils.quote(segment_url, safe='')}"
+                    rewritten_lines.append(proxied)
+            
+            from fastapi.responses import Response
+            return Response(
+                content='\n'.join(rewritten_lines),
+                media_type='application/vnd.apple.mpegurl',
+                headers={'Access-Control-Allow-Origin': '*'}
+            )
+        else:
+            # Not an M3U8, just proxy as-is (could be a segment)
+            return StreamingResponse(
+                iter([r.content]),
+                media_type=content_type,
+            )
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

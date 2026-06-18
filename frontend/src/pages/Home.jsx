@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { Play, Clock, Loader2 } from 'lucide-react';
+import { Play, Clock, Loader2, Search } from 'lucide-react';
 
 export default function Home() {
   const [searchParams] = useSearchParams();
@@ -48,12 +48,18 @@ export default function Home() {
             return (
               <Link to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} key={index} className="group flex flex-col gap-3">
                 <div className="relative aspect-video rounded-xl overflow-hidden bg-white/5">
-                  <img 
-                    src={video.image} 
-                    alt={video.title} 
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    loading="lazy"
-                  />
+                  {video.image ? (
+                    <img 
+                      src={video.image} 
+                      alt={video.title} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-white/5 to-white/10 flex items-center justify-center">
+                      <Play className="w-8 h-8 text-gray-600" />
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="w-12 h-12 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-[0_0_20px_rgba(255,42,95,0.6)] transform scale-75 group-hover:scale-100 transition-all duration-300">
                       <Play className="w-5 h-5 text-white ml-1" />
