@@ -6,7 +6,9 @@ from bs4 import BeautifulSoup
 import re
 import uvicorn
 import json
-
+import diskcache
+import functools
+from fastapi import Request
 def extract_page_data(html):
     """Extract page data from HTML by finding the initial state JSON in script tag"""
     soup = BeautifulSoup(html, 'html.parser')
@@ -33,6 +35,33 @@ def format_duration(seconds):
 
 app = FastAPI()
 
+# Initialize persistent disk cache
+cache = diskcache.Cache('.cache')
+
+def cache_response(ttl_seconds: int):
+    """Decorator to cache FastAPI endpoint responses using diskcache."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            key_parts = [func.__name__]
+            for k, v in kwargs.items():
+                if isinstance(v, Request):
+                    continue
+                key_parts.append(f"{k}={v}")
+            
+            cache_key = ":".join(key_parts)
+            cached_value = cache.get(cache_key)
+            if cached_value is not None:
+                return cached_value
+                
+            result = func(*args, **kwargs)
+            
+            if isinstance(result, dict) and result.get("status") == "success":
+                cache.set(cache_key, result, expire=ttl_seconds)
+                
+            return result
+        return wrapper
+    return decorator
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -110,6 +139,7 @@ def parse_video_list(html_or_soup):
     return videos
 
 @app.get("/api/search")
+@cache_response(ttl_seconds=3600)  # 1 hour
 def search_videos(q: str = Query(..., description="Search query"), page: int = Query(1, description="Page number")):
     target_url = f"https://xhamster.com/search/video?q={q}&page={page}"
     
@@ -129,6 +159,7 @@ def search_videos(q: str = Query(..., description="Search query"), page: int = Q
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/trending")
+@cache_response(ttl_seconds=7200)  # 2 hours
 def trending_videos(page: int = Query(1, description="Page number")):
     target_url = f"https://xhamster.com/best/monthly/{page}"
     try:
@@ -140,6 +171,7 @@ def trending_videos(page: int = Query(1, description="Page number")):
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/newest")
+@cache_response(ttl_seconds=7200)  # 2 hours
 def newest_videos(page: int = Query(1, description="Page number")):
     target_url = f"https://xhamster.com/newest/{page}"
     try:
@@ -151,27 +183,25 @@ def newest_videos(page: int = Query(1, description="Page number")):
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/categories")
+@cache_response(ttl_seconds=86400)  # 24 hours
 def get_categories():
     target_url = "https://xhamster.com/categories"
     try:
         response = requests.get(target_url, headers=HEADERS)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
+        
         cats = []
+        langs = []
         seen = set()
-        # Try both selectors: itemContent-12755 and item-f658a (thumb items)
-        for a in soup.select('a[href*="/categories/"]'):
+        
+        for a in soup.select('a'):
             href = a.get('href', '')
-            # Skip photo categories, only video categories
-            if '/photos/' in href:
-                continue
-                
-            name = a.text.strip() or (a.get('title', '').strip())
+            name = a.text.strip() or a.get('title', '').strip()
             if not name:
-                # Try finding text inside
                 name = a.get_text(strip=True)
                 
-            if href:
+            if '/categories/' in href and '/photos/' not in href and name:
                 slug = href.rstrip('/').split('/')[-1]
                 
                 image_url = ""
@@ -179,19 +209,24 @@ def get_categories():
                 if img_tag:
                     image_url = img_tag.get('src') or img_tag.get('data-src', '')
                 
+                cat_data = {"name": name, "slug": slug, "url": href, "image": image_url}
+                
                 if href not in seen:
-                    if name:
-                        seen.add(href)
-                        cats.append({"name": name, "slug": slug, "url": href, "image": image_url})
+                    seen.add(href)
+                    if name.lower().startswith('porn in '):
+                        langs.append(cat_data)
+                    else:
+                        cats.append(cat_data)
                 else:
-                    # Update image if we found a better one
+                    # Update image if we found a better one later in the page
                     if image_url:
                         for cat in cats:
-                            if cat['url'] == href:
-                                if not cat['image']:
-                                    cat['image'] = image_url
-                                if not cat['name'] and name:
-                                    cat['name'] = name
+                            if cat['url'] == href and not cat['image']:
+                                cat['image'] = image_url
+                                break
+                        for cat in langs:
+                            if cat['url'] == href and not cat['image']:
+                                cat['image'] = image_url
                                 break
 
         # Separate countries and normal categories
@@ -228,11 +263,17 @@ def get_categories():
             else:
                 normal_cats.append(cat)
 
-        return {"status": "success", "categories": normal_cats, "countries": country_cats}
+        return {
+            "status": "success", 
+            "categories": normal_cats, 
+            "countries": country_cats,
+            "languages": langs
+        }
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/category/{slug}")
+@cache_response(ttl_seconds=3600)  # 1 hour
 def category_videos(slug: str, page: int = Query(1, description="Page number")):
     target_url = f"https://xhamster.com/categories/{slug}/{page}"
     try:
@@ -244,6 +285,7 @@ def category_videos(slug: str, page: int = Query(1, description="Page number")):
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/video")
+@cache_response(ttl_seconds=600)  # 10 mins
 def get_video_stream(url: str = Query(..., description="Full xHamster video URL")):
     try:
         response = requests.get(url, headers=HEADERS)
