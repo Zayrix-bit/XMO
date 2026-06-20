@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import Hls from 'hls.js';
-import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 
 function SkeletonVideo() {
   return (
@@ -22,8 +22,11 @@ export default function Watch() {
   const [qualities, setQualities] = useState([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [showAllRelated, setShowAllRelated] = useState(false);
 
   const originalUrl = searchParams.get('url') || '';
+  const hasStream = videoData && (videoData.hls_proxy_url || videoData.proxy_url);
+  const relatedVideos = videoData?.related || [];
 
   useEffect(() => {
     const fetchVideo = async () => {
@@ -56,6 +59,17 @@ export default function Watch() {
     const video = videoRef.current;
     const hlsUrl = videoData.hls_proxy_url ? `http://localhost:8000${videoData.hls_proxy_url}` : null;
     const mp4Url = videoData.proxy_url ? `http://localhost:8000${videoData.proxy_url}` : null;
+
+    // Function to handle video end
+    const handleVideoEnd = () => {
+      if (relatedVideos.length > 0) {
+        const nextVideo = relatedVideos[0];
+        const nextVideoId = nextVideo.id || nextVideo.link.split('-').pop().replace('/', '');
+        navigate(`/watch/${nextVideoId}?url=${encodeURIComponent(nextVideo.link)}`);
+      }
+    };
+
+    video.addEventListener('ended', handleVideoEnd);
 
     // Try HLS first
     if (hlsUrl && Hls.isSupported()) {
@@ -90,6 +104,7 @@ export default function Watch() {
       });
 
       return () => {
+        video.removeEventListener('ended', handleVideoEnd);
         hls.destroy();
         hlsRef.current = null;
       };
@@ -98,8 +113,14 @@ export default function Watch() {
     else if (mp4Url) {
       video.src = mp4Url;
       video.play().catch(() => {});
+      return () => {
+        video.removeEventListener('ended', handleVideoEnd);
+      };
     }
-  }, [videoData]);
+    return () => {
+      video.removeEventListener('ended', handleVideoEnd);
+    };
+  }, [videoData, relatedVideos, navigate]);
 
   const switchQuality = (levelIndex) => {
     if (hlsRef.current) {
@@ -109,34 +130,31 @@ export default function Watch() {
     setShowQualityMenu(false);
   };
 
-  const hasStream = videoData && (videoData.hls_proxy_url || videoData.proxy_url);
-  const relatedVideos = videoData?.related || [];
-
   return (
-    <div className="p-4 md:p-6 lg:p-8 flex flex-col items-center pb-20">
-      <div className="w-full max-w-6xl">
+    <div className="pt-24 pb-28 px-4 md:px-8 lg:px-12 max-w-[1600px] mx-auto w-full">
+      <div className="w-full">
         <button 
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-400 hover:text-[#ff2a5f] transition-colors mb-6 font-medium"
+          className="flex items-center gap-2 text-gray-400 hover:text-[#ff2a5f] transition-colors mb-6 font-semibold active:scale-95"
         >
-          <ArrowLeft className="w-5 h-5" /> Back
+          <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" /> Back
         </button>
 
         {loading ? (
           <div className="space-y-6">
             <SkeletonVideo />
-            <div className="h-24 bg-white/5 rounded-2xl animate-pulse"></div>
+            <div className="h-32 bg-white/5 rounded-2xl animate-pulse"></div>
           </div>
         ) : error ? (
-          <div className="w-full aspect-video bg-red-500/10 rounded-2xl flex flex-col items-center justify-center border border-red-500/20">
-            <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">Stream Error</h2>
-            <p className="text-gray-400">{error}</p>
+          <div className="w-full aspect-video bg-red-500/10 rounded-2xl flex flex-col items-center justify-center border border-red-500/20 p-8">
+            <AlertCircle className="w-14 h-14 md:w-16 md:h-16 text-red-500 mb-5" />
+            <h2 className="text-xl md:text-2xl font-bold text-white mb-3">Stream Error</h2>
+            <p className="text-gray-400 text-sm md:text-base">{error}</p>
           </div>
         ) : hasStream ? (
-          <div className="space-y-6">
+          <div className="space-y-6 md:space-y-8">
             {/* Video Player */}
-            <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10 group">
+            <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-white/10 group">
               <video
                 ref={videoRef}
                 className="w-full h-full"
@@ -152,20 +170,20 @@ export default function Watch() {
                 <div className="absolute top-4 right-4 z-10">
                   <button
                     onClick={() => setShowQualityMenu(!showQualityMenu)}
-                    className="bg-black/70 backdrop-blur-sm hover:bg-black/90 text-white px-3 py-2 rounded-lg flex items-center gap-2 transition-all border border-white/10 text-sm font-medium opacity-0 group-hover:opacity-100"
+                    className="bg-black/75 backdrop-blur-md hover:bg-black/90 text-white px-4 py-2.5 rounded-2xl flex items-center gap-2 transition-all border border-white/10 text-sm font-semibold opacity-0 group-hover:opacity-100"
                   >
                     <Settings className="w-4 h-4" />
                     {currentQuality === -1 ? 'Auto' : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}
                   </button>
 
                   {showQualityMenu && (
-                    <div className="absolute top-full right-0 mt-2 bg-black/90 backdrop-blur-xl border border-white/15 rounded-xl overflow-hidden shadow-2xl min-w-[160px]">
-                      <div className="px-3 py-2 border-b border-white/10">
+                    <div className="absolute top-full right-0 mt-3 bg-black/90 backdrop-blur-xl border border-white/15 rounded-2xl overflow-hidden shadow-2xl min-w-[160px]">
+                      <div className="px-4 py-3 border-b border-white/10">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quality</span>
                       </div>
                       <button
                         onClick={() => switchQuality(-1)}
-                        className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === -1 ? 'text-[#ff2a5f]' : 'text-white'}`}
+                        className={`w-full px-5 py-3 text-left text-sm flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === -1 ? 'text-[#ff2a5f]' : 'text-white'}`}
                       >
                         Auto
                         {currentQuality === -1 && <Check className="w-4 h-4" />}
@@ -174,7 +192,7 @@ export default function Watch() {
                         <button
                           key={q.index}
                           onClick={() => switchQuality(q.index)}
-                          className={`w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === q.index ? 'text-[#ff2a5f]' : 'text-white'}`}
+                          className={`w-full px-5 py-3 text-left text-sm flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === q.index ? 'text-[#ff2a5f]' : 'text-white'}`}
                         >
                           {q.label}
                           {currentQuality === q.index && <Check className="w-4 h-4" />}
@@ -187,14 +205,14 @@ export default function Watch() {
             </div>
             
             {/* Video Info */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 md:p-7 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="flex-1">
-                <h1 className="text-xl md:text-2xl font-bold text-white mb-3 line-clamp-2">
+                <h1 className="text-lg md:text-2xl font-bold text-white mb-3 line-clamp-2">
                   {videoData.title || "Now Playing"}
                 </h1>
                 <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400">
-                  <span className="flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded-md text-white font-medium">
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-full text-white font-semibold">
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
                     {qualities.length > 0 ? 'HLS' : 'MP4'}
                   </span>
                   <span>Scraped securely</span>
@@ -202,26 +220,36 @@ export default function Watch() {
                   <span>Premium Source</span>
                 </div>
               </div>
-              <div className="flex items-center gap-3 w-full md:w-auto">
-                <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-[#ff2a5f]/20 text-white hover:text-[#ff2a5f] border border-white/10 hover:border-[#ff2a5f]/50 px-5 py-3 rounded-xl transition-all font-medium">
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-[#ff2a5f]/20 text-white hover:text-[#ff2a5f] border border-white/10 hover:border-[#ff2a5f]/50 px-5 py-3 rounded-2xl transition-all font-medium active:scale-95">
                   <Heart className="w-5 h-5" /> Like
                 </button>
-                <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-5 py-3 rounded-xl transition-all font-medium">
+                <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl transition-all font-medium active:scale-95">
                   <Share2 className="w-5 h-5" /> Share
                 </button>
+                {videoData.original_url && (
+                  <a
+                    href={videoData.original_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#ff2a5f]/20 hover:bg-[#ff2a5f]/30 text-[#ff2a5f] border border-[#ff2a5f]/50 hover:border-[#ff2a5f] px-5 py-3 rounded-2xl transition-all font-medium active:scale-95"
+                  >
+                    View on xHamster
+                  </a>
+                )}
               </div>
             </div>
 
             {/* Related Videos */}
             {relatedVideos.length > 0 && (
-              <div className="mt-12">
-                <h3 className="text-xl font-bold text-white mb-6">Related Videos</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {relatedVideos.map((video, index) => {
+              <div className="mt-12 md:mt-16">
+                <h3 className="text-xl md:text-2xl font-bold text-white mb-6">Related Videos</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+                  {(showAllRelated ? relatedVideos : relatedVideos.slice(0, 6)).map((video, index) => {
                     const videoId = video.id || video.link.split('-').pop().replace('/', '');
                     return (
-                      <Link to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} key={index} className="group flex flex-col gap-3">
-                        <div className="relative aspect-video rounded-xl overflow-hidden bg-white/5">
+                      <Link to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} key={index} className="group flex flex-col gap-3 active:scale-[0.98]">
+                        <div className="relative aspect-video rounded-2xl overflow-hidden bg-white/5 shadow-lg shadow-black/20">
                           {video.image && (
                             <img 
                               src={video.image} 
@@ -231,31 +259,45 @@ export default function Watch() {
                             />
                           )}
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <div className="w-10 h-10 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-[0_0_20px_rgba(255,42,95,0.6)] transform scale-75 group-hover:scale-100 transition-all duration-300">
-                              <Play className="w-4 h-4 text-white ml-1" />
+                            <div className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-[0_0_20px_rgba(255,42,95,0.6)] transform scale-75 group-hover:scale-100 transition-all duration-300">
+                              <Play className="w-4.5 h-4.5 md:w-5 md:h-5 text-white ml-0.5" />
                             </div>
                           </div>
                           {video.duration && (
-                            <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-[#ff2a5f]" /> {video.duration}
+                            <div className="absolute bottom-2 right-2 bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-full text-xs font-semibold text-white flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-[#ff2a5f]" /> {video.duration}
                             </div>
                           )}
                         </div>
-                        <h3 className="text-sm font-medium text-gray-200 group-hover:text-white line-clamp-2 transition-colors">
+                        <h3 className="text-sm md:text-base font-medium text-gray-200 group-hover:text-white line-clamp-2 transition-colors">
                           {video.title}
                         </h3>
                       </Link>
                     );
                   })}
                 </div>
+                {relatedVideos.length > 6 && (
+                  <div className="mt-10 flex justify-center">
+                    <button
+                      onClick={() => setShowAllRelated(!showAllRelated)}
+                      className="bg-white/5 hover:bg-[#ff2a5f]/20 border border-white/10 hover:border-[#ff2a5f]/50 px-7 py-3.5 rounded-2xl text-white font-semibold transition-all flex items-center gap-2 active:scale-95"
+                    >
+                      {showAllRelated ? (
+                        <>Show Less <ChevronUp className="w-4.5 h-4.5" /></>
+                      ) : (
+                        <>Show More Related Videos <ChevronDown className="w-4.5 h-4.5" /></>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         ) : (
-          <div className="w-full aspect-video bg-red-500/10 rounded-2xl flex flex-col items-center justify-center border border-red-500/20">
-            <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">No Stream Found</h2>
-            <p className="text-gray-400">Could not find a playable video source.</p>
+          <div className="w-full aspect-video bg-red-500/10 rounded-2xl flex flex-col items-center justify-center border border-red-500/20 p-8">
+            <AlertCircle className="w-14 h-14 md:w-16 md:h-16 text-red-500 mb-5" />
+            <h2 className="text-xl md:text-2xl font-bold text-white mb-3">No Stream Found</h2>
+            <p className="text-gray-400 text-sm md:text-base">Could not find a playable video source.</p>
           </div>
         )}
       </div>

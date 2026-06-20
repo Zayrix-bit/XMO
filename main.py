@@ -165,12 +165,70 @@ def get_categories():
             # Skip photo categories, only video categories
             if '/photos/' in href:
                 continue
-            name = a.text.strip()
-            if name and href and href not in seen:
-                seen.add(href)
+                
+            name = a.text.strip() or (a.get('title', '').strip())
+            if not name:
+                # Try finding text inside
+                name = a.get_text(strip=True)
+                
+            if href:
                 slug = href.rstrip('/').split('/')[-1]
-                cats.append({"name": name, "slug": slug, "url": href})
-        return {"status": "success", "categories": cats}
+                
+                image_url = ""
+                img_tag = a.select_one('img')
+                if img_tag:
+                    image_url = img_tag.get('src') or img_tag.get('data-src', '')
+                
+                if href not in seen:
+                    if name:
+                        seen.add(href)
+                        cats.append({"name": name, "slug": slug, "url": href, "image": image_url})
+                else:
+                    # Update image if we found a better one
+                    if image_url:
+                        for cat in cats:
+                            if cat['url'] == href:
+                                if not cat['image']:
+                                    cat['image'] = image_url
+                                if not cat['name'] and name:
+                                    cat['name'] = name
+                                break
+
+        # Separate countries and normal categories
+        COUNTRY_SLUGS = {
+            'indian', 'desi', 'russian', 'american', 'british', 'japanese', 'korean', 'chinese', 'german', 'french',
+            'italian', 'spanish', 'brazilian', 'mexican', 'colombian', 'canadian', 'australian', 'filipino', 'thai',
+            'vietnamese', 'indonesian', 'malaysian', 'arab', 'egyptian', 'moroccan', 'turkish', 'iranian', 'pakistani',
+            'bangladeshi', 'sri-lankan', 'nepali', 'south-african', 'nigerian', 'kenyan', 'ukrainian', 'polish', 'czech',
+            'hungarian', 'romanian', 'bulgarian', 'swedish', 'norwegian', 'danish', 'finnish', 'dutch', 'belgian', 'swiss',
+            'austrian', 'greek', 'portuguese', 'argentinian', 'chilean', 'peruvian', 'venezuelan', 'cuban', 'puerto-rican',
+            'dominican', 'jamaican', 'israeli', 'lebanese', 'syrian', 'iraqi', 'afghan', 'uzbek', 'kazakh', 'somali',
+            'ethiopian', 'sudanese', 'ugandan', 'zimbabwean', 'zambian', 'tanzanian', 'ghanaian', 'cameroonian', 'senegalese',
+            'ivorian', 'malian', 'guinean', 'angolan', 'mozambican', 'madagascan', 'rwandan', 'burundian', 'malawian',
+            'botswanan', 'namibian', 'swazi', 'lesotho', 'mauritian', 'seychellois', 'comoran', 'djiboutian', 'eritrean',
+            'south-sudanese', 'central-african', 'chadian', 'nigerien', 'burkinabe', 'togolese', 'beninese', 'liberian',
+            'sierra-leonean', 'gambian', 'bissau-guinean', 'equatorial-guinean', 'gabonese', 'congolese', 'sao-tomean',
+            'cape-verdean', 'saudi', 'emirati', 'qatari', 'kuwaiti', 'bahraini', 'omani', 'yemeni', 'jordanian', 'palestinian',
+            'cypriot', 'maltese', 'georgian', 'armenian', 'azerbaijani', 'turkmen', 'tajik', 'kyrgyz', 'mongolian', 'taiwanese',
+            'singaporean', 'bruneian', 'timorese', 'papuan', 'fijian', 'samoan', 'tongan', 'vanuatuan', 'solomon-islander',
+            'micronesian', 'marshallese', 'palauan', 'nauruan', 'tuvaluan', 'kiribati', 'latvian', 'lithuanian', 'estonian',
+            'belarusian', 'moldovan', 'slovak', 'slovenian', 'croatian', 'bosnian', 'serbian', 'montenegrin', 'macedonian',
+            'albanian', 'kosovar', 'icelandic', 'irish', 'scottish', 'welsh', 'english', 'greenlandic', 'faroese', 'andorran',
+            'monacan', 'sammarinese', 'vatican', 'liechtenstein', 'luxembourgish', 'bahamian', 'belizean', 'costa-rican',
+            'salvadoran', 'guatemalan', 'honduran', 'nicaraguan', 'panamanian', 'antiguan', 'barbadian', 'grenadian', 'haitian',
+            'kittitian', 'lucian', 'vincentian', 'trinidadian', 'surinamese', 'guyanese', 'ecuadorian', 'bolivian', 'paraguayan',
+            'uruguayan', 'asian', 'latina', 'latino', 'euro', 'european', 'arabian', 'african', 'black', 'ebony', 'white'
+        }
+        
+        normal_cats = []
+        country_cats = []
+        for cat in cats:
+            if cat['slug'] in COUNTRY_SLUGS:
+                country_cats.append(cat)
+            else:
+                normal_cats.append(cat)
+
+        return {"status": "success", "categories": normal_cats, "countries": country_cats}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -243,7 +301,7 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
             "direct_url": direct_url,
             "proxy_url": proxy_url,
             "hls_proxy_url": hls_proxy_url,
-            "related": related[:12],
+            "related": related,
             "streams": {
                 "m3u8": m3u8_links,
                 "mp4": mp4_links

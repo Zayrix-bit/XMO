@@ -9,7 +9,7 @@ function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-[#0f0f13] text-white flex flex-col font-sans">
         <Navbar />
-        <main className="flex-1 max-w-[1600px] mx-auto w-full pt-[70px]">
+        <main className="flex-1 max-w-[1600px] mx-auto w-full">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/watch/:id" element={<Watch />} />
