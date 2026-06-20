@@ -42,6 +42,26 @@ export default function Watch() {
   const leftRippleTimeout = useRef(null);
   const rightRippleTimeout = useRef(null);
 
+  // Autoplay next state (persisted via localStorage)
+  const [autoPlayNext, setAutoPlayNext] = useState(() => {
+    const saved = localStorage.getItem('autoPlayNext');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+
+  const autoPlayNextRef = useRef(autoPlayNext);
+  
+  useEffect(() => {
+    autoPlayNextRef.current = autoPlayNext;
+    localStorage.setItem('autoPlayNext', JSON.stringify(autoPlayNext));
+  }, [autoPlayNext]);
+
+  // Ref to track if we skipped the starting 5s intro
+  const hasSkippedIntroRef = useRef(false);
+
+  useEffect(() => {
+    hasSkippedIntroRef.current = false;
+  }, [id]);
+
   const originalUrl = searchParams.get('url') || '';
   const hasStream = videoData && (videoData.hls_proxy_url || videoData.proxy_url);
   const relatedVideos = videoData?.related || [];
@@ -80,7 +100,7 @@ export default function Watch() {
 
     // Function to handle video end
     const handleVideoEnd = () => {
-      if (relatedVideos.length > 0) {
+      if (autoPlayNextRef.current && relatedVideos.length > 0) {
         const nextVideo = relatedVideos[0];
         const nextVideoId = nextVideo.id || nextVideo.link.split('-').pop().replace('/', '');
         navigate(`/watch/${nextVideoId}?url=${encodeURIComponent(nextVideo.link)}`);
@@ -185,7 +205,7 @@ export default function Watch() {
     const val = parseFloat(e.target.value);
     setCurrentTime(val);
     if (videoRef.current) {
-      videoRef.current.currentTime = val;
+      videoRef.current.currentTime = Math.max(val, 5);
     }
   };
 
@@ -215,7 +235,7 @@ export default function Watch() {
 
     if (clickX < width / 2) {
       // Seek 10s backward
-      video.currentTime = Math.max(video.currentTime - 10, 0);
+      video.currentTime = Math.max(video.currentTime - 10, 5);
 
       // Trigger left ripple feedback
       setShowLeftRipple(true);
@@ -271,11 +291,26 @@ export default function Watch() {
       setIsPlaying(false);
       triggerControls(false); // Disable auto-hide on pause to keep controls visible
     };
-    const onTimeUpdate = () => setCurrentTime(video.currentTime);
+    const onTimeUpdate = () => {
+      if (!hasSkippedIntroRef.current && video.duration > 5) {
+        video.currentTime = 5;
+        hasSkippedIntroRef.current = true;
+      }
+      if (video.currentTime < 5 && video.duration > 5) {
+        video.currentTime = 5;
+      }
+      setCurrentTime(video.currentTime);
+    };
     const onDurationChange = () => setDuration(video.duration);
     const onWaiting = () => setIsBuffering(true);
     const onPlaying = () => setIsBuffering(false);
-    const onLoadedMetadata = () => setDuration(video.duration);
+    const onLoadedMetadata = () => {
+      setDuration(video.duration);
+      if (!hasSkippedIntroRef.current && video.duration > 5) {
+        video.currentTime = 5;
+        hasSkippedIntroRef.current = true;
+      }
+    };
 
     video.addEventListener('play', onPlay);
     video.addEventListener('pause', onPause);
@@ -353,7 +388,7 @@ export default function Watch() {
           break;
         case 'arrowleft':
           e.preventDefault();
-          video.currentTime = Math.max(video.currentTime - 10, 0);
+          video.currentTime = Math.max(video.currentTime - 10, 5);
           break;
         case 'arrowup': {
           e.preventDefault();
@@ -497,16 +532,16 @@ export default function Watch() {
                   <div className="w-full mb-4 flex items-center group/timeline">
                     <input
                       type="range"
-                      min={0}
+                      min={5}
                       max={duration || 100}
-                      value={currentTime}
+                      value={Math.max(currentTime, 5)}
                       onChange={handleSeek}
                       className="w-full h-1.5 rounded-lg appearance-none cursor-pointer outline-none bg-white/20 accent-[#ff2a5f] transition-all hover:h-2 focus:outline-none"
                       style={{
                         background: `linear-gradient(to right, #ff2a5f 0%, #ff2a5f ${
-                          duration ? (currentTime / duration) * 100 : 0
+                          duration > 5 ? ((currentTime - 5) / (duration - 5)) * 100 : 0
                         }%, rgba(255, 255, 255, 0.2) ${
-                          duration ? (currentTime / duration) * 100 : 0
+                          duration > 5 ? ((currentTime - 5) / (duration - 5)) * 100 : 0
                         }%, rgba(255, 255, 255, 0.2) 100%)`,
                       }}
                     />
@@ -520,7 +555,7 @@ export default function Watch() {
                         onClick={(e) => {
                           e.stopPropagation();
                           if (videoRef.current) {
-                            videoRef.current.currentTime = Math.max(videoRef.current.currentTime - 10, 0);
+                            videoRef.current.currentTime = Math.max(videoRef.current.currentTime - 10, 5);
                             triggerControls();
                           }
                         }}
@@ -578,7 +613,7 @@ export default function Watch() {
 
                       {/* Time Duration Label */}
                       <div className="text-white text-xs md:text-sm font-semibold tracking-wide">
-                        {formatTime(currentTime)} <span className="text-white/40 mx-1">/</span> {formatTime(duration)}
+                        {formatTime(Math.max(currentTime - 5, 0))} <span className="text-white/40 mx-1">/</span> {formatTime(Math.max(duration - 5, 0))}
                       </div>
                     </div>
 
@@ -674,7 +709,22 @@ export default function Watch() {
             <div className="lg:col-span-1 space-y-6">
               {relatedVideos.length > 0 && (
                 <div>
-                  <h3 className="text-xl font-bold text-white mb-4">Related Videos</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-white">Related Videos</h3>
+                    <div 
+                      onClick={() => setAutoPlayNext(!autoPlayNext)}
+                      className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 select-none hover:text-white transition-colors"
+                    >
+                      <span>Autoplay Next</span>
+                      <div 
+                        className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${autoPlayNext ? 'bg-[#ff2a5f]' : 'bg-white/20'}`}
+                      >
+                        <div 
+                          className={`absolute top-0.5 left-0.5 w-3.5 h-3 rounded-full bg-white transition-transform duration-200 ${autoPlayNext ? 'translate-x-3.5' : 'translate-x-0'}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex flex-col gap-3.5">
                     {(showAllRelated ? relatedVideos : relatedVideos.slice(0, 8)).map((video, index) => {
                       const videoId = video.id || video.link.split('-').pop().replace('/', '');
