@@ -19,6 +19,9 @@ export default function Home() {
   const tab = searchParams.get('tab') || (query ? 'search' : 'trending');
   const page = parseInt(searchParams.get('page') || '1');
   
+  // Debug log
+  console.log("Home page debug - query:", query, "tab:", tab, "search params:", Object.fromEntries(searchParams.entries()));
+  
   const [videos, setVideos] = useState([]);
   const [allCategoriesData, setAllCategoriesData] = useState([]);
   const [normalCategories, setNormalCategories] = useState([]);

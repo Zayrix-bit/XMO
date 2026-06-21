@@ -83,8 +83,8 @@ async def options_handler():
     }
 
 XHAMSTER_DOMAINS = [
-    'xhamster.desi',
     'xhamster.com',
+    'xhamster.desi',
     'xhamster2.com',
     'xhamster3.com',
     'xhamster4.com',
@@ -187,7 +187,7 @@ def parse_video_list(html_or_soup):
     return videos
 
 @app.get("/api/search")
-@cache_response(ttl_seconds=3600)  # 1 hour
+# @cache_response(ttl_seconds=3600)  # Temporarily disabled for debugging
 def search_videos(q: str = Query(..., description="Search query"), page: int = Query(1, description="Page number")):
     path = f"/search/video?q={q}&page={page}"
     response, domain = fetch_with_fallback(path)

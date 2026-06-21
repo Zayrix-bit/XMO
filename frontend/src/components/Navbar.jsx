@@ -13,7 +13,11 @@ export default function Navbar() {
   const handleSearch = (e) => {
     e.preventDefault();
     if (search.trim()) {
-      navigate(`/?q=${encodeURIComponent(search.trim())}`, { replace: true });
+      const params = new URLSearchParams();
+      params.set('tab', 'search');
+      params.set('q', search.trim());
+      params.set('page', '1');
+      navigate(`/?${params.toString()}`, { replace: true });
       setMobileSearch(false);
       setMobileMenu(false);
     }
