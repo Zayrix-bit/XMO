@@ -70,6 +70,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Explicit OPTIONS handler for CORS preflight
+@app.options("/api/{path:path}")
+async def options_handler():
+    return {
+        "status": "ok",
+        "headers": {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    }
+
 XHAMSTER_DOMAINS = [
     'xhamster.desi',
     'xhamster.com',
@@ -418,7 +430,7 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/proxy")
-def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy")):
+def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"), request: Request = None):
     """Proxy the video stream with correct Referer header to bypass CDN 403 blocks."""
     try:
         # Find the appropriate xHamster domain for referer
@@ -435,27 +447,36 @@ def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"
             'Origin': f'https://{referer_domain}',
         }
         
+        # Copy range headers if present
+        if request and 'range' in request.headers:
+            proxy_headers['Range'] = request.headers['range']
+        
         r = requests.get(url, headers=proxy_headers, stream=True)
         r.raise_for_status()
         
-        content_type = r.headers.get('Content-Type', 'video/mp4')
-        content_length = r.headers.get('Content-Length')
+        # Build response headers
+        response_headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+        }
         
-        headers = {}
-        if content_length:
-            headers['Content-Length'] = content_length
-        headers['Accept-Ranges'] = 'bytes'
+        # Copy important headers
+        for header in ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'Cache-Control']:
+            if header in r.headers:
+                response_headers[header] = r.headers[header]
         
         return StreamingResponse(
             r.iter_content(chunk_size=1024 * 256),
-            media_type=content_type,
-            headers=headers
+            status_code=r.status_code,
+            media_type=response_headers.get('Content-Type', 'video/mp4'),
+            headers=response_headers
         )
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/hls-proxy")
-def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewriting")):
+def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewriting"), request: Request = None):
     """Proxy M3U8 playlists and rewrite internal URLs to also go through our proxy."""
     try:
         # Find the appropriate xHamster domain for referer
@@ -514,13 +535,27 @@ def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewr
             return Response(
                 content='\n'.join(rewritten_lines),
                 media_type='application/vnd.apple.mpegurl',
-                headers={'Access-Control-Allow-Origin': '*'}
+                headers={
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                    'Access-Control-Allow-Headers': '*',
+                }
             )
         else:
             # Not an M3U8, just proxy as-is (could be a segment)
+            response_headers = {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': '*',
+            }
+            for header in ['Content-Type', 'Content-Length']:
+                if header in r.headers:
+                    response_headers[header] = r.headers[header]
+            
             return StreamingResponse(
                 iter([r.content]),
                 media_type=content_type,
+                headers=response_headers
             )
     except Exception as e:
         return {"status": "error", "message": str(e)}

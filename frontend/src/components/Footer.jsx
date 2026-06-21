@@ -1,8 +1,88 @@
-import { Flame, Globe } from 'lucide-react';
+import { Flame, Globe, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import { Link } from 'react-router-dom';
 
 export default function Footer() {
+  const [categories, setCategories] = useState([]);
+  const [groupedCategories, setGroupedCategories] = useState({});
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await axios.get('http://localhost:8000/api/categories');
+        const cats = res.data.categories || [];
+        const countries = res.data.countries || [];
+        const combined = [...cats, ...countries];
+        setCategories(combined);
+        
+        // Group categories by first letter
+        const grouped = {};
+        combined.forEach(cat => {
+          const firstLetter = cat.name.charAt(0).toUpperCase();
+          if (!grouped[firstLetter]) {
+            grouped[firstLetter] = [];
+          }
+          grouped[firstLetter].push(cat);
+        });
+        setGroupedCategories(grouped);
+      } catch (err) {
+        console.error("Error fetching categories for footer:", err);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Get sorted letters
+  const sortedLetters = Object.keys(groupedCategories).sort();
+
   return (
     <footer className="bg-[#0b0b0f] border-t border-white/10 mt-28">
+      {/* Category Index Section (A-Z) */}
+      {sortedLetters.length > 0 && (
+        <div className="border-b border-white/5 py-10">
+          <div className="max-w-[1600px] mx-auto px-6 md:px-12">
+            <div className="flex items-center gap-3 mb-8">
+              <Search className="w-5 h-5 text-[#ff2a5f]" />
+              <h3 className="text-lg font-bold text-white">All other categories</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8">
+              {sortedLetters.slice(0, 18).map(letter => (
+                <div key={letter} className="space-y-3">
+                  <div className="text-sm font-bold text-white flex items-center gap-2">
+                    <span className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-[#ff2a5f] text-xs font-black">
+                      {letter}
+                    </span>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {groupedCategories[letter].slice(0, 5).map((cat, i) => (
+                      <li key={i}>
+                        <Link 
+                          to={`/?tab=category&slug=${cat.slug}`}
+                          className="text-xs text-gray-500 hover:text-white transition-colors block"
+                        >
+                          {cat.name}
+                        </Link>
+                      </li>
+                    ))}
+                    {groupedCategories[letter].length > 5 && (
+                      <li>
+                        <Link 
+                          to="/?tab=categories"
+                          className="text-xs text-[#ff2a5f] font-semibold hover:text-[#ff7e40] transition-colors"
+                        >
+                          View All &rsaquo;
+                        </Link>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="max-w-[1600px] mx-auto px-6 md:px-12 py-16">
         {/* Top Grid of Columns */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 pb-12 border-b border-white/5">

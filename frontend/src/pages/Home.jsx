@@ -20,7 +20,8 @@ export default function Home() {
   const page = parseInt(searchParams.get('page') || '1');
   
   const [videos, setVideos] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [allCategoriesData, setAllCategoriesData] = useState([]);
+  const [normalCategories, setNormalCategories] = useState([]);
   const [countries, setCountries] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +31,7 @@ export default function Home() {
     const fetchCategories = async () => {
       try {
         const res = await axios.get('http://localhost:8000/api/categories');
-        setCategories(res.data.categories || []);
+        setNormalCategories(res.data.categories || []);
         setCountries(res.data.countries || []);
         setAllCategories([...(res.data.categories || []), ...(res.data.countries || [])]);
       } catch (err) {
@@ -56,9 +57,9 @@ export default function Home() {
           const slug = searchParams.get('slug');
           endpoint = `/api/category/${slug}?page=${page}`;
         } else if (tab === 'categories') {
-          setCategories(allCategories);
-          setVideos([]);
+          // Only show categories, not countries on categories page
           setLoading(false);
+          setVideos([]);
           return;
         } else {
           endpoint = `/api/trending?page=${page}`; // default
@@ -135,10 +136,10 @@ export default function Home() {
       {/* Categories Grid */}
       {tab === 'categories' && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-3">
-          {loading ? (
+          {normalCategories.length === 0 ? (
             Array(24).fill(0).map((_, i) => <div key={i} className="aspect-[16/9] bg-white/5 rounded-md md:rounded-lg animate-pulse"></div>)
           ) : (
-            categories.map((cat, i) => (
+            normalCategories.map((cat, i) => (
               <Link 
                 key={i} 
                 to={`/?tab=category&slug=${cat.slug}`}
