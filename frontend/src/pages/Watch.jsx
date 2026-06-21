@@ -28,7 +28,7 @@ export default function Watch() {
   const [scrubTime, setScrubTime] = useState(null); // Time to preview
   const [isScrubbing, setIsScrubbing] = useState(false);
   const canvasRef = useRef(null);
-  const previewVideoRef = useRef(null);
+  const wasPlayingRef = useRef(false);
 
   // Custom player states & references
   const playerContainerRef = useRef(null);
@@ -367,30 +367,30 @@ export default function Watch() {
 
   // Update preview when scrubbing
   useEffect(() => {
-    if (isScrubbing && previewVideoRef.current && canvasRef.current && scrubTime !== null) {
-      const previewVideo = previewVideoRef.current;
+    if (isScrubbing && videoRef.current && canvasRef.current && scrubTime !== null) {
+      const video = videoRef.current;
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
 
+      // Save original playing state
+      if (!wasPlayingRef.current) {
+        wasPlayingRef.current = !video.paused;
+        if (!video.paused) video.pause();
+      }
+
       const handleSeeked = () => {
-        ctx.drawImage(previewVideo, 0, 0, canvas.width, canvas.height);
-        previewVideo.removeEventListener('seeked', handleSeeked);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        video.removeEventListener('seeked', handleSeeked);
       };
 
-      previewVideo.addEventListener('seeked', handleSeeked);
-      previewVideo.currentTime = scrubTime;
+      video.addEventListener('seeked', handleSeeked);
+      video.currentTime = scrubTime;
+    } else if (!isScrubbing && videoRef.current && wasPlayingRef.current) {
+      // Resume playback if it was playing before scrubbing
+      if (videoRef.current.paused) videoRef.current.play().catch(() => {});
+      wasPlayingRef.current = false;
     }
   }, [scrubTime, isScrubbing]);
-
-  // Set preview video source when main video data changes
-  useEffect(() => {
-    if (previewVideoRef.current && hasStream) {
-      const url = videoData.hls_proxy_url 
-        ? `http://localhost:8000${videoData.hls_proxy_url}` 
-        : `http://localhost:8000${videoData.proxy_url}`;
-      previewVideoRef.current.src = url;
-    }
-  }, [videoData, hasStream]);
 
   // Keyboard Shortcuts (Hotkeys)
   useEffect(() => {
@@ -521,8 +521,6 @@ export default function Watch() {
                 onDoubleClick={handleDoubleClick}
                 className="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-white/[0.08] group select-none cursor-pointer"
               >
-                {/* Hidden Preview Video for Scrubbing */}
-                <video ref={previewVideoRef} className="hidden" muted playsInline preload="metadata" />
                 <video
                   ref={videoRef}
                   className="w-full h-full object-contain"
@@ -604,24 +602,46 @@ export default function Watch() {
                       max={duration || 100}
                       value={Math.max(currentTime, 5)}
                       onChange={handleSeek}
-                      onMouseDown={() => setIsScrubbing(true)}
+                      onMouseDown={(e) => {
+                        setIsScrubbing(true);
+                        const rect = e.target.getBoundingClientRect();
+                        const pos = (e.clientX - rect.left) / rect.width;
+                        const scrubVal = 5 + pos * (duration - 5);
+                        setScrubTime(scrubVal);
+                        setCurrentTime(scrubVal);
+                        if (videoRef.current) videoRef.current.currentTime = scrubVal;
+                      }}
                       onMouseMove={(e) => {
                         if (isScrubbing) {
                           const rect = e.target.getBoundingClientRect();
                           const pos = (e.clientX - rect.left) / rect.width;
                           const scrubVal = 5 + pos * (duration - 5);
                           setScrubTime(scrubVal);
+                          setCurrentTime(scrubVal);
+                          if (videoRef.current) videoRef.current.currentTime = scrubVal;
                         }
                       }}
                       onMouseUp={() => setIsScrubbing(false)}
                       onMouseLeave={() => setIsScrubbing(false)}
-                      onTouchStart={() => setIsScrubbing(true)}
+                      onTouchStart={(e) => {
+                        setIsScrubbing(true);
+                        if (e.touches[0]) {
+                          const rect = e.target.getBoundingClientRect();
+                          const pos = (e.touches[0].clientX - rect.left) / rect.width;
+                          const scrubVal = 5 + pos * (duration - 5);
+                          setScrubTime(scrubVal);
+                          setCurrentTime(scrubVal);
+                          if (videoRef.current) videoRef.current.currentTime = scrubVal;
+                        }
+                      }}
                       onTouchMove={(e) => {
                         if (isScrubbing && e.touches[0]) {
                           const rect = e.target.getBoundingClientRect();
                           const pos = (e.touches[0].clientX - rect.left) / rect.width;
                           const scrubVal = 5 + pos * (duration - 5);
                           setScrubTime(scrubVal);
+                          setCurrentTime(scrubVal);
+                          if (videoRef.current) videoRef.current.currentTime = scrubVal;
                         }
                       }}
                       onTouchEnd={() => setIsScrubbing(false)}
