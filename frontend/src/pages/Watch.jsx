@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import Hls from 'hls.js';
-import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, ChevronUp, Pause, Volume2, VolumeX, Maximize, Minimize, Loader2, ChevronLeft, ChevronRight, RotateCcw, RotateCw, Eye } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, ChevronUp, Pause, Volume2, VolumeX, Maximize, Minimize, Loader2, ChevronLeft, ChevronRight, RotateCcw, RotateCw, Eye, User } from 'lucide-react';
 
 function SkeletonVideo() {
   return (
@@ -776,6 +776,33 @@ export default function Watch() {
                   </div>
                 </div>
               </div>
+              
+              {/* Uploader Section */}
+              {videoData.uploader && (
+                <div className="flex items-center gap-3 bg-[#121218] p-3 rounded-xl border border-white/[0.06]">
+                  {videoData.uploader.avatar ? (
+                    <img 
+                      src={videoData.uploader.avatar} 
+                      alt={videoData.uploader.name || videoData.uploader.username} 
+                      className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border border-white/10"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
+                      <User className="w-5 h-5 md:w-6 md:h-6 text-white/70" />
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <span className="text-sm md:text-base font-semibold text-white">
+                      {videoData.uploader.name || videoData.uploader.username}
+                    </span>
+                    {videoData.uploader.username && videoData.uploader.name && (
+                      <span className="text-xs text-gray-500">
+                        @{videoData.uploader.username}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               
               {/* Video Actions */}
               <div className="flex items-center gap-3">

@@ -10,17 +10,49 @@ import diskcache
 import functools
 from fastapi import Request
 def extract_page_data(html):
-    """Extract page data from HTML by finding the initial state JSON in script tag"""
+    """Extract page data from HTML by finding the largest JSON object in script tags"""
     soup = BeautifulSoup(html, 'html.parser')
+    largest_data = None
+    largest_size = 0
+    
     for script in soup.find_all('script'):
-        if script.string and 'videoThumbProps' in script.string:
+        if script.string:
             try:
-                json_match = re.search(r'\{.*\}', script.string, re.DOTALL)
-                if json_match:
-                    return json.loads(json_match.group())
+                # Find all JSON objects in the script
+                # Use a pattern that matches balanced braces (handles nested objects)
+                content = script.string
+                start_idx = 0
+                while True:
+                    # Find the first opening brace
+                    start_brace = content.find('{', start_idx)
+                    if start_brace == -1:
+                        break
+                    
+                    # Find matching closing brace
+                    brace_count = 1
+                    end_brace = start_brace + 1
+                    while end_brace < len(content) and brace_count > 0:
+                        if content[end_brace] == '{':
+                            brace_count += 1
+                        elif content[end_brace] == '}':
+                            brace_count -= 1
+                        end_brace += 1
+                    
+                    if brace_count == 0:
+                        json_str = content[start_brace:end_brace]
+                        try:
+                            data = json.loads(json_str)
+                            size = len(json_str)
+                            if isinstance(data, dict) and size > largest_size:
+                                largest_size = size
+                                largest_data = data
+                        except Exception:
+                            pass
+                    
+                    start_idx = end_brace
             except Exception:
                 continue
-    return None
+    return largest_data
 
 def format_duration(seconds):
     """Convert seconds to MM:SS or HH:MM:SS"""
@@ -130,9 +162,36 @@ def fetch_with_fallback(path: str, use_https: bool = True):
     protocol = 'https' if use_https else 'http'
     for domain in XHAMSTER_DOMAINS:
         try:
+            session = requests.Session()
             url = f"{protocol}://{domain}{path}"
             print(f"[DEBUG] Trying domain: {url}")
-            response = requests.get(url, headers=HEADERS, timeout=10, allow_redirects=True)
+            response = session.get(url, headers=HEADERS, timeout=15, allow_redirects=True)
+            print(f"[DEBUG] Initial response status code: {response.status_code}")
+            
+            # Check if this is the anti-bot redirect page
+            if response.status_code == 200 and 'REDIRECT_URL' in response.text:
+                print("[DEBUG] Found anti-bot page, following redirect...")
+                soup = BeautifulSoup(response.text, 'html.parser')
+                # Find the redirect URL from the script tag
+                import re
+                redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
+                if redirect_url_match:
+                    redirect_url = redirect_url_match.group(1)
+                    # Let's use the fp parameter from the noscript link
+                    noscript_link = soup.find('noscript')
+                    fp = '-5'  # default
+                    if noscript_link and noscript_link.find('a'):
+                        fp_url = noscript_link.find('a')['href']
+                        fp_match = re.search(r'fp=([^&]+)', fp_url)
+                        if fp_match:
+                            fp = fp_match.group(1)
+                    # Build the final URL
+                    final_url = redirect_url + f"fp={fp}"
+                    print(f"[DEBUG] Following redirect to: {final_url}")
+                    # Now fetch the actual page with the same session
+                    response = session.get(final_url, headers=HEADERS, timeout=15, allow_redirects=True)
+                    print(f"[DEBUG] Final response status code: {response.status_code}")
+            
             response.raise_for_status()
             print(f"[DEBUG] Success with domain: {domain}")
             print(f"[DEBUG] Final URL (after redirects): {response.url}")
@@ -403,7 +462,7 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         html = response.text
         soup = BeautifulSoup(html, 'html.parser')
         
-        # Extract page data (embedded JSON) for views and other info
+        # Extract page data (embedded JSON) for views, author, etc.
         page_data = extract_page_data(html)
         
         # Extract video title
@@ -412,25 +471,28 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
             title_tag = soup.select_one('h1')
         video_title = title_tag.text.strip() if title_tag else 'Untitled Video'
         
-        # Extract views (from page data)
+        # Extract views and author/uploader from page data
         views = None
+        uploader = None
         if page_data:
-            # First try videoEntity
-            if 'videoEntity' in page_data and 'views' in page_data['videoEntity']:
-                views_raw = page_data['videoEntity']['views']
-                views = format_views(views_raw)
-            # Then try videoModel
-            elif 'videoModel' in page_data and 'views' in page_data['videoModel']:
-                views_raw = page_data['videoModel']['views']
-                views = format_views(views_raw)
-            # Then try videoHeadingComponent
-            elif 'videoHeadingComponent' in page_data and 'views' in page_data['videoHeadingComponent']:
-                views_raw = page_data['videoHeadingComponent']['views']
-                views = format_views(views_raw)
-            # Then try videoTitle
-            elif 'videoTitle' in page_data and 'views' in page_data['videoTitle']:
-                views_raw = page_data['videoTitle']['views']
-                views = format_views(views_raw)
+            # Extract views
+            for view_key in ['videoModel', 'videoEntity', 'videoHeadingComponent', 'videoTitle']:
+                if view_key in page_data and 'views' in page_data[view_key]:
+                    views_raw = page_data[view_key]['views']
+                    views = format_views(views_raw)
+                    break
+            
+            # Extract author/uploader
+            if 'videoModel' in page_data and 'author' in page_data['videoModel']:
+                author = page_data['videoModel']['author']
+                # Also check 'landing' for better name/avatar
+                landing = page_data['videoModel'].get('landing', {}) if 'landing' in page_data['videoModel'] else {}
+                uploader = {
+                    'name': landing.get('name') or author.get('name'),
+                    'username': author.get('name'),
+                    'avatar': landing.get('logo') or '',
+                    'profile_url': landing.get('link') or author.get('pageURL')
+                }
         
         # Extract related videos (pass html)
         related = parse_video_list(html)
@@ -478,6 +540,7 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
             "status": "success",
             "title": video_title,
             "views": views,
+            "uploader": uploader,
             "direct_url": direct_url,
             "proxy_url": proxy_url,
             "hls_proxy_url": hls_proxy_url,
