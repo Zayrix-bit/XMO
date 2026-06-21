@@ -5,10 +5,10 @@ import { Play, Clock, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-reac
 
 function SkeletonCard() {
   return (
-    <div className="flex flex-col gap-2.5 animate-pulse">
-      <div className="aspect-video bg-[#121218] rounded-lg w-full"></div>
-      <div className="h-4 bg-[#121218] rounded-md w-4/5"></div>
-      <div className="h-3 bg-[#121218] rounded-md w-1/3"></div>
+    <div className="flex flex-col gap-2.5">
+      <div className="aspect-video bg-[#121218] rounded-lg w-full animate-pulse"></div>
+      <div className="h-4 bg-[#121218] rounded-md w-5/6 animate-pulse"></div>
+      <div className="h-3 bg-[#121218] rounded-md w-1/3 animate-pulse"></div>
     </div>
   );
 }
@@ -70,7 +70,6 @@ export default function Home() {
 
         const response = await axios.get(`http://localhost:8000${endpoint}`);
         if (response.data.status === 'success') {
-          console.log("Number of videos from API:", response.data.results.length);
           setVideos(response.data.results);
         }
       } catch (error) {
@@ -225,22 +224,15 @@ export default function Home() {
       {/* Videos Grid */}
       {tab !== 'categories' && (
         <>
-          <div className="mb-4 text-red-500 font-bold text-lg">
-            Total videos in state: {videos.length}
-          </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">
             {loading ? (
-              Array(15).fill(0).map((_, i) => <SkeletonCard key={i} />)
+              Array(20).fill(0).map((_, i) => <SkeletonCard key={i} />)
             ) : videos.length > 0 ? (
               videos.map((video, index) => {
-                console.log(`Rendering video ${index + 1}:`, video.title);
                 const videoId = video.id || video.link.split('-').pop().replace('/', '');
                 return (
                   <Link to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} key={index} className="group flex flex-col gap-2.5">
-                    <div className="relative aspect-video rounded-lg overflow-hidden bg-[#121218] border border-red-500">
-                      <div className="absolute top-1 left-1 bg-red-600 text-white text-xs px-1 py-0.5 rounded z-10">
-                        {index + 1}
-                      </div>
+                    <div className="relative aspect-video rounded-lg overflow-hidden bg-[#121218]">
                       {video.image ? (
                         <img 
                           src={video.image} 
@@ -254,8 +246,8 @@ export default function Home() {
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-11 h-11 md:w-12 md:h-12 rounded-full bg-[#ff2a5f] flex items-center justify-center">
-                          <Play className="w-4.5 h-4.5 md:w-5 md:h-5 text-white ml-0.5" />
+                        <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-[#ff2a5f]/95 flex items-center justify-center shadow-lg">
+                          <Play className="w-7 h-7 md:w-8 md:h-8 text-white ml-1" />
                         </div>
                       </div>
                       {video.duration && (
@@ -295,18 +287,20 @@ export default function Home() {
               <button 
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page <= 1}
-                className="p-2.5 md:p-3 rounded-lg bg-[#121218] border border-white/[0.06] text-white hover:bg-[#181822] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#121218] border border-white/[0.06] text-white hover:bg-[#181822] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                <ChevronLeft className="w-5 h-5 md:w-5.5 md:h-5.5" />
+                <ChevronLeft className="w-4 h-4" />
+                Previous
               </button>
-              <div className="px-6 py-2.5 rounded-lg bg-[#121218] border border-white/[0.06] font-semibold text-sm md:text-base">
+              <div className="px-4 py-2.5 rounded-lg bg-[#121218] border border-white/[0.06] font-semibold text-sm md:text-base">
                 Page {page}
               </div>
               <button 
                 onClick={() => handlePageChange(page + 1)}
-                className="p-2.5 md:p-3 rounded-lg bg-[#ff2a5f] text-white hover:bg-[#ff4a75] transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#ff2a5f] text-white hover:bg-[#ff4a75] transition-all"
               >
-                <ChevronRight className="w-5 h-5 md:w-5.5 md:h-5.5" />
+                Next
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           )}

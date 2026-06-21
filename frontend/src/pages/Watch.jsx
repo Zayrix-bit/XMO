@@ -6,7 +6,7 @@ import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, Ch
 
 function SkeletonVideo() {
   return (
-    <div className="w-full aspect-video bg-white/5 rounded-2xl animate-pulse"></div>
+    <div className="w-full aspect-video bg-[#121218] rounded-lg animate-pulse"></div>
   );
 }
 
@@ -420,11 +420,11 @@ export default function Watch() {
   }, [isPlaying, volume, isFullscreen, isMuted]);
 
   return (
-    <div className="pt-24 pb-28 px-4 md:px-8 lg:px-12 max-w-[1600px] mx-auto w-full">
+    <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
       <div className="w-full">
         <button 
           onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-400 hover:text-[#ff2a5f] transition-colors mb-6 font-semibold active:scale-95"
+          className="flex items-center gap-2 text-gray-400 hover:text-[#ff2a5f] transition-colors mb-6 font-semibold"
         >
           <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" /> Back
         </button>
@@ -434,24 +434,24 @@ export default function Watch() {
             {/* Left Skeleton Column */}
             <div className="lg:col-span-2 space-y-6">
               <SkeletonVideo />
-              <div className="h-32 bg-white/5 rounded-2xl animate-pulse"></div>
+              <div className="h-32 bg-[#121218] rounded-lg animate-pulse"></div>
             </div>
             {/* Right Skeleton Column */}
             <div className="lg:col-span-1 space-y-4">
-              <div className="h-7 bg-white/5 rounded-lg w-1/3 animate-pulse mb-4"></div>
+              <div className="h-7 bg-[#121218] rounded-lg w-1/3 animate-pulse mb-4"></div>
               {Array(4).fill(0).map((_, i) => (
                 <div key={i} className="flex gap-4 animate-pulse">
-                  <div className="w-36 aspect-video bg-white/5 rounded-xl flex-shrink-0"></div>
+                  <div className="w-36 aspect-video bg-[#121218] rounded-lg flex-shrink-0"></div>
                   <div className="flex-1 space-y-2 py-1">
-                    <div className="h-4 bg-white/5 rounded w-full"></div>
-                    <div className="h-3 bg-white/5 rounded w-1/3"></div>
+                    <div className="h-4 bg-[#121218] rounded w-full"></div>
+                    <div className="h-3 bg-[#121218] rounded w-1/3"></div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
         ) : error ? (
-          <div className="w-full aspect-video bg-red-500/10 rounded-2xl flex flex-col items-center justify-center border border-red-500/20 p-8">
+          <div className="w-full aspect-video bg-red-500/10 rounded-lg flex flex-col items-center justify-center border border-red-500/20 p-8">
             <AlertCircle className="w-14 h-14 md:w-16 md:h-16 text-red-500 mb-5" />
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">Stream Error</h2>
             <p className="text-gray-400 text-sm md:text-base">{error}</p>
@@ -469,12 +469,12 @@ export default function Watch() {
                   {videoData.title || "Now Playing"}
                 </h1>
                 <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm text-gray-400">
-                  <span className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-full text-white/90 font-medium">
+                  <span className="flex items-center gap-1.5 bg-[#121218] px-3 py-1.5 rounded-lg text-white/90 font-medium border border-white/[0.06]">
                     <span className="w-2 h-2 rounded-full bg-green-500"></span>
                     {qualities.length > 0 ? 'HLS' : 'MP4'}
                   </span>
                   {videoData.views && (
-                    <span className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-full text-gray-300 font-medium">
+                    <span className="flex items-center gap-1.5 bg-[#121218] px-3 py-1.5 rounded-lg text-gray-300 font-medium border border-white/[0.06]">
                       <Eye className="w-3.5 h-3.5 text-gray-400" /> {videoData.views}
                     </span>
                   )}
@@ -488,7 +488,7 @@ export default function Watch() {
                 onMouseLeave={handleMouseLeave}
                 onClick={togglePlay}
                 onDoubleClick={handleDoubleClick}
-                className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-lg border border-white/10 group select-none cursor-pointer"
+                className="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-white/[0.08] group select-none cursor-pointer"
               >
                 <video
                   ref={videoRef}

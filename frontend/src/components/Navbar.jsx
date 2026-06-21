@@ -58,13 +58,13 @@ export default function Navbar() {
         {/* Desktop Search */}
         <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative hidden md:block">
           <div className="relative flex items-center">
-            <Search className="absolute left-5 w-4.5 h-4.5 text-gray-500" />
+            <Search className="absolute left-4 w-5 h-5 text-gray-400" />
             <input 
               type="text" 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search videos..." 
-              className="w-full bg-[#121218] border border-white/[0.08] rounded-full py-2.5 pl-14 pr-6 text-white placeholder-gray-500 focus:outline-none focus:border-white/[0.15] focus:bg-[#14141c] transition-all text-sm"
+              className="w-full bg-[#121218] border border-white/[0.08] rounded-full py-2.5 pl-12 pr-6 text-white placeholder-gray-500 focus:outline-none focus:border-[#ff2a5f]/50 focus:bg-[#14141c] transition-all text-sm"
             />
           </div>
         </form>
