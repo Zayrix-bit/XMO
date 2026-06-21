@@ -1,4 +1,4 @@
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Flame, X, Menu, Sparkles, FolderHeart } from 'lucide-react';
 import { useState } from 'react';
 
@@ -18,8 +18,20 @@ export default function Navbar() {
     }
   };
 
+  const goHome = () => {
+    const params = new URLSearchParams(); // clear all params
+    setSearchParams(params);
+    setMobileMenu(false);
+  };
+
   const setTab = (tab) => {
-    setSearchParams({ tab, page: '1' });
+    const params = new URLSearchParams(searchParams);
+    params.set('tab', tab);
+    params.set('page', '1');
+    // Remove other params when switching tabs
+    params.delete('q');
+    params.delete('slug');
+    setSearchParams(params);
     setMobileMenu(false);
   };
 
@@ -28,14 +40,14 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 w-full z-50 bg-[#0f0f13]/90 backdrop-blur-md border-b border-white/5 h-[70px]">
       <div className="max-w-[1600px] mx-auto px-4 h-full flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 group shrink-0" onClick={() => setMobileMenu(false)}>
+        <button onClick={goHome} className="flex items-center gap-2 group shrink-0">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff2a5f] to-[#ff7e40] flex items-center justify-center shadow-[0_0_15px_rgba(255,42,95,0.4)] group-hover:shadow-[0_0_25px_rgba(255,42,95,0.6)] transition-all">
             <Flame className="w-6 h-6 text-white" />
           </div>
           <span className="text-2xl font-black tracking-tight hidden sm:inline">
             NIGHT<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff2a5f] to-[#ff7e40]">HUB</span>
           </span>
-        </Link>
+        </button>
 
         {/* Desktop Search */}
         <form onSubmit={handleSearch} className="flex-1 max-w-xl mx-8 relative hidden md:block">
@@ -54,12 +66,12 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           {/* Desktop Links */}
           <div className="hidden md:flex items-center gap-3">
-            <Link to="/" onClick={() => setTab('trending')} className={`text-xs font-bold transition-colors tracking-wider ${currentTab === 'trending' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>HOME</Link>
-            <Link to="/" onClick={() => setTab('trending')} className={`text-xs font-bold transition-colors flex items-center gap-1 tracking-wider ${currentTab === 'trending' ? 'text-[#ff2a5f] hover:text-[#ff7e40]' : 'text-gray-300 hover:text-white'}`}>
+            <button onClick={goHome} className={`text-xs font-bold transition-colors tracking-wider ${!searchParams.get('tab') ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>HOME</button>
+            <button onClick={() => setTab('trending')} className={`text-xs font-bold transition-colors flex items-center gap-1 tracking-wider ${currentTab === 'trending' ? 'text-[#ff2a5f] hover:text-[#ff7e40]' : 'text-gray-300 hover:text-white'}`}>
               <Flame className="w-3.5 h-3.5" /> TRENDING
-            </Link>
-            <Link to="/" onClick={() => setTab('new')} className={`text-xs font-bold transition-colors tracking-wider ${currentTab === 'new' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>NEW</Link>
-            <Link to="/" onClick={() => setTab('categories')} className={`text-xs font-bold transition-colors tracking-wider ${currentTab === 'categories' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>CATEGORIES</Link>
+            </button>
+            <button onClick={() => setTab('new')} className={`text-xs font-bold transition-colors tracking-wider ${currentTab === 'new' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>NEW</button>
+            <button onClick={() => setTab('categories')} className={`text-xs font-bold transition-colors tracking-wider ${currentTab === 'categories' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>CATEGORIES</button>
           </div>
 
           {/* Mobile Search Toggle */}
@@ -101,6 +113,12 @@ export default function Navbar() {
       {mobileMenu && (
         <div className="md:hidden absolute top-[70px] left-0 w-full bg-[#0f0f13] border-b border-white/5 px-4 py-4 mobile-search-enter shadow-2xl shadow-black/60 z-40">
           <div className="flex flex-col gap-2">
+            <button 
+              onClick={goHome} 
+              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${!searchParams.get('tab') ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+            >
+              <Flame className="w-5 h-5" /> Home
+            </button>
             <button 
               onClick={() => setTab('trending')} 
               className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${currentTab === 'trending' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
