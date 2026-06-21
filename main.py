@@ -70,10 +70,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+XHAMSTER_DOMAINS = [
+    'xhamster.desi',
+    'xhamster.com',
+    'xhamster2.com',
+    'xhamster3.com',
+    'xhamster4.com',
+    'xhamster5.com',
+    'xhamster6.com',
+    'xhamster7.com',
+    'xhamster8.com',
+    'xhamster9.com',
+    'xhamster10.com',
+]
+
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
     'Accept-Language': 'en-US,en;q=0.9',
 }
+
+
+def fetch_with_fallback(path: str, use_https: bool = True):
+    """
+    Try fetching from all xHamster domains until one works.
+    :param path: Path part of URL (e.g., "/newest/2", "/search/video?q=milf")
+    :param use_https: Whether to use https
+    :return: (response, working_domain)
+    """
+    protocol = 'https' if use_https else 'http'
+    for domain in XHAMSTER_DOMAINS:
+        try:
+            url = f"{protocol}://{domain}{path}"
+            print(f"Trying domain: {url}")
+            response = requests.get(url, headers=HEADERS, timeout=10)
+            response.raise_for_status()
+            print(f"Success with domain: {domain}")
+            return response, domain
+        except Exception as e:
+            print(f"Failed with domain {domain}: {str(e)}")
+            continue
+    return None, None
 
 @app.get("/")
 def home():
@@ -141,54 +177,71 @@ def parse_video_list(html_or_soup):
 @app.get("/api/search")
 @cache_response(ttl_seconds=3600)  # 1 hour
 def search_videos(q: str = Query(..., description="Search query"), page: int = Query(1, description="Page number")):
-    target_url = f"https://xhamster.com/search/video?q={q}&page={page}"
+    path = f"/search/video?q={q}&page={page}"
+    response, domain = fetch_with_fallback(path)
     
+    if not response:
+        return {"status": "error", "message": "No working xHamster domain found!"}
+        
     try:
-        response = requests.get(target_url, headers=HEADERS)
-        response.raise_for_status()
         videos = parse_video_list(response.text)
                 
         return {
             "status": "success",
             "query": q,
             "page": page,
-            "results": videos
+            "results": videos,
+            "used_domain": domain
         }
         
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/trending")
-@cache_response(ttl_seconds=7200)  # 2 hours
+@cache_response(ttl_seconds=10)  # 10-second cache to prevent multi-fetch flickering
 def trending_videos(page: int = Query(1, description="Page number")):
-    target_url = f"https://xhamster.com/best/monthly/{page}"
+    # Fetch the dynamic live feed for page 1, and fall back to monthly best for pagination
+    if page == 1:
+        path = "/"
+    else:
+        path = f"/best/monthly/{page}"
+        
+    response, domain = fetch_with_fallback(path)
+    
+    if not response:
+        return {"status": "error", "message": "No working xHamster domain found!"}
+    
     try:
-        response = requests.get(target_url, headers=HEADERS)
-        response.raise_for_status()
         videos = parse_video_list(response.text)
-        return {"status": "success", "page": page, "results": videos}
+        return {"status": "success", "page": page, "results": videos, "used_domain": domain}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/newest")
-@cache_response(ttl_seconds=7200)  # 2 hours
+@cache_response(ttl_seconds=10)  # 10-second cache to prevent multi-fetch flickering
 def newest_videos(page: int = Query(1, description="Page number")):
-    target_url = f"https://xhamster.com/newest/{page}"
+    path = f"/newest/{page}"
+    response, domain = fetch_with_fallback(path)
+    
+    if not response:
+        return {"status": "error", "message": "No working xHamster domain found!"}
+    
     try:
-        response = requests.get(target_url, headers=HEADERS)
-        response.raise_for_status()
         videos = parse_video_list(response.text)
-        return {"status": "success", "page": page, "results": videos}
+        return {"status": "success", "page": page, "results": videos, "used_domain": domain}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/categories")
 @cache_response(ttl_seconds=86400)  # 24 hours
 def get_categories():
-    target_url = "https://xhamster.com/categories"
+    path = "/categories"
+    response, domain = fetch_with_fallback(path)
+    
+    if not response:
+        return {"status": "error", "message": "No working xHamster domain found!"}
+    
     try:
-        response = requests.get(target_url, headers=HEADERS)
-        response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
         cats = []
@@ -267,7 +320,8 @@ def get_categories():
             "status": "success", 
             "categories": normal_cats, 
             "countries": country_cats,
-            "languages": langs
+            "languages": langs,
+            "used_domain": domain
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -275,12 +329,15 @@ def get_categories():
 @app.get("/api/category/{slug}")
 @cache_response(ttl_seconds=3600)  # 1 hour
 def category_videos(slug: str, page: int = Query(1, description="Page number")):
-    target_url = f"https://xhamster.com/categories/{slug}/{page}"
+    path = f"/categories/{slug}/{page}"
+    response, domain = fetch_with_fallback(path)
+    
+    if not response:
+        return {"status": "error", "message": "No working xHamster domain found!"}
+    
     try:
-        response = requests.get(target_url, headers=HEADERS)
-        response.raise_for_status()
         videos = parse_video_list(response.text)
-        return {"status": "success", "category": slug, "page": page, "results": videos}
+        return {"status": "success", "category": slug, "page": page, "results": videos, "used_domain": domain}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -337,6 +394,11 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         if m3u8_links:
             hls_proxy_url = f"/api/hls-proxy?url={requests.utils.quote(m3u8_links[0], safe='')}"
         
+        # Extract referer/origin domain from original url
+        from urllib.parse import urlparse
+        parsed_original = urlparse(url)
+        original_domain = parsed_original.netloc
+        
         return {
             "status": "success",
             "title": video_title,
@@ -348,7 +410,8 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
                 "m3u8": m3u8_links,
                 "mp4": mp4_links
             },
-            "original_url": url
+            "original_url": url,
+            "original_domain": original_domain
         }
         
     except Exception as e:
@@ -358,10 +421,18 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
 def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy")):
     """Proxy the video stream with correct Referer header to bypass CDN 403 blocks."""
     try:
+        # Find the appropriate xHamster domain for referer
+        from urllib.parse import urlparse
+        referer_domain = 'xhamster.desi'
+        for domain in XHAMSTER_DOMAINS:
+            if domain in url:
+                referer_domain = domain
+                break
+                
         proxy_headers = {
             **HEADERS,
-            'Referer': 'https://xhamster.com/',
-            'Origin': 'https://xhamster.com',
+            'Referer': f'https://{referer_domain}/',
+            'Origin': f'https://{referer_domain}',
         }
         
         r = requests.get(url, headers=proxy_headers, stream=True)
@@ -387,10 +458,17 @@ def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"
 def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewriting")):
     """Proxy M3U8 playlists and rewrite internal URLs to also go through our proxy."""
     try:
+        # Find the appropriate xHamster domain for referer
+        referer_domain = 'xhamster.desi'
+        for domain in XHAMSTER_DOMAINS:
+            if domain in url:
+                referer_domain = domain
+                break
+                
         proxy_headers = {
             **HEADERS,
-            'Referer': 'https://xhamster.com/',
-            'Origin': 'https://xhamster.com',
+            'Referer': f'https://{referer_domain}/',
+            'Origin': f'https://{referer_domain}',
         }
         
         r = requests.get(url, headers=proxy_headers)
