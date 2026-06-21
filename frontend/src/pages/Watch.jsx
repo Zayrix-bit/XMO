@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import Hls from 'hls.js';
-import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, ChevronUp, Pause, Volume2, VolumeX, Maximize, Minimize, Loader2, ChevronLeft, ChevronRight, RotateCcw, RotateCw } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, ChevronUp, Pause, Volume2, VolumeX, Maximize, Minimize, Loader2, ChevronLeft, ChevronRight, RotateCcw, RotateCw, Eye } from 'lucide-react';
 
 function SkeletonVideo() {
   return (
@@ -473,6 +473,11 @@ export default function Watch() {
                     <span className="w-2 h-2 rounded-full bg-green-500"></span>
                     {qualities.length > 0 ? 'HLS' : 'MP4'}
                   </span>
+                  {videoData.views && (
+                    <span className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-full text-gray-300 font-medium">
+                      <Eye className="w-3.5 h-3.5 text-gray-400" /> {videoData.views}
+                    </span>
+                  )}
                 </div>
               </div>
               
@@ -778,6 +783,12 @@ export default function Watch() {
                             <h4 className="text-[11px] md:text-xs font-semibold text-gray-200 group-hover:text-white line-clamp-2 transition-colors leading-snug">
                               {video.title}
                             </h4>
+                            {video.views && (
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <Eye className="w-2.5 h-2.5 text-gray-500" />
+                                <span className="text-[9px] text-gray-500">{video.views}</span>
+                              </div>
+                            )}
                           </div>
                         </Link>
                       );

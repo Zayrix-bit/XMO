@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { Play, Clock, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Clock, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 
 function SkeletonCard() {
   return (
@@ -271,6 +271,12 @@ export default function Home() {
                       <h3 className="text-sm md:text-base font-medium text-gray-200 group-hover:text-white line-clamp-2 transition-colors">
                         {video.title}
                       </h3>
+                      {video.views && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <Eye className="w-3.5 h-3.5 text-gray-500" />
+                          <span className="text-xs text-gray-500">{video.views}</span>
+                        </div>
+                      )}
                     </div>
                   </Link>
                 );

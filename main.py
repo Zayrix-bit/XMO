@@ -33,6 +33,16 @@ def format_duration(seconds):
     else:
         return f"{minutes:02d}:{secs:02d}"
 
+
+def format_views(views):
+    """Format view count (e.g., 1234 → 1.2K, 1234567 → 1.2M)"""
+    if views >= 1000000:
+        return f"{views / 1000000:.1f}M"
+    elif views >= 1000:
+        return f"{views / 1000:.1f}K"
+    else:
+        return str(views)
+
 app = FastAPI()
 
 # Initialize persistent disk cache
@@ -194,6 +204,8 @@ def parse_video_list(html_or_soup):
                     duration_seconds = item.get('duration', 0)
                     duration = format_duration(duration_seconds)
                     video_id = str(item.get('id', ''))
+                    views_raw = item.get('views', 0)
+                    views = format_views(views_raw)
                     
                     if link and title:
                         videos.append({
@@ -201,7 +213,8 @@ def parse_video_list(html_or_soup):
                             'title': title,
                             'link': link,
                             'image': image,
-                            'duration': duration
+                            'duration': duration,
+                            'views': views
                         })
                 except Exception:
                     continue
@@ -390,11 +403,34 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         html = response.text
         soup = BeautifulSoup(html, 'html.parser')
         
+        # Extract page data (embedded JSON) for views and other info
+        page_data = extract_page_data(html)
+        
         # Extract video title
         title_tag = soup.select_one('h1.with-player-container')
         if not title_tag:
             title_tag = soup.select_one('h1')
         video_title = title_tag.text.strip() if title_tag else 'Untitled Video'
+        
+        # Extract views (from page data)
+        views = None
+        if page_data:
+            # First try videoEntity
+            if 'videoEntity' in page_data and 'views' in page_data['videoEntity']:
+                views_raw = page_data['videoEntity']['views']
+                views = format_views(views_raw)
+            # Then try videoModel
+            elif 'videoModel' in page_data and 'views' in page_data['videoModel']:
+                views_raw = page_data['videoModel']['views']
+                views = format_views(views_raw)
+            # Then try videoHeadingComponent
+            elif 'videoHeadingComponent' in page_data and 'views' in page_data['videoHeadingComponent']:
+                views_raw = page_data['videoHeadingComponent']['views']
+                views = format_views(views_raw)
+            # Then try videoTitle
+            elif 'videoTitle' in page_data and 'views' in page_data['videoTitle']:
+                views_raw = page_data['videoTitle']['views']
+                views = format_views(views_raw)
         
         # Extract related videos (pass html)
         related = parse_video_list(html)
@@ -441,6 +477,7 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         return {
             "status": "success",
             "title": video_title,
+            "views": views,
             "direct_url": direct_url,
             "proxy_url": proxy_url,
             "hls_proxy_url": hls_proxy_url,
