@@ -71,7 +71,6 @@ export default function Home() {
         const response = await axios.get(`http://localhost:8000${endpoint}`);
         if (response.data.status === 'success') {
           setVideos(response.data.results);
-          setCategories([]);
         }
       } catch (error) {
         console.error("Failed to fetch data:", error);

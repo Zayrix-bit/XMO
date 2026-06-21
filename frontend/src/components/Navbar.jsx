@@ -47,7 +47,7 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 w-full z-50 bg-[#0f0f13]/90 backdrop-blur-md border-b border-white/5 h-[70px]">
       <div className="max-w-[1600px] mx-auto px-4 h-full flex items-center justify-between">
         <button onClick={goHome} className="flex items-center gap-2 group shrink-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff2a5f] to-[#ff7e40] flex items-center justify-center shadow-[0_0_15px_rgba(255,42,95,0.4)] group-hover:shadow-[0_0_25px_rgba(255,42,95,0.6)] transition-all">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff2a5f] to-[#ff7e40] flex items-center justify-center">
             <Flame className="w-6 h-6 text-white" />
           </div>
           <span className="text-2xl font-black tracking-tight hidden sm:inline">
