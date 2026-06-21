@@ -67,11 +67,11 @@ export default function Navbar() {
           {/* Desktop Links */}
           <div className="hidden md:flex items-center gap-3">
             <button onClick={goHome} className={`text-xs font-bold transition-colors tracking-wider ${!searchParams.get('tab') ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>HOME</button>
-            <button onClick={() => setTab('trending')} className={`text-xs font-bold transition-colors flex items-center gap-1 tracking-wider ${currentTab === 'trending' ? 'text-[#ff2a5f] hover:text-[#ff7e40]' : 'text-gray-300 hover:text-white'}`}>
+            <button onClick={() => setTab('trending')} className={`text-xs font-bold transition-colors flex items-center gap-1 tracking-wider ${searchParams.get('tab') === 'trending' ? 'text-[#ff2a5f] hover:text-[#ff7e40]' : 'text-gray-300 hover:text-white'}`}>
               <Flame className="w-3.5 h-3.5" /> TRENDING
             </button>
-            <button onClick={() => setTab('new')} className={`text-xs font-bold transition-colors tracking-wider ${currentTab === 'new' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>NEW</button>
-            <button onClick={() => setTab('categories')} className={`text-xs font-bold transition-colors tracking-wider ${currentTab === 'categories' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>CATEGORIES</button>
+            <button onClick={() => setTab('new')} className={`text-xs font-bold transition-colors tracking-wider ${searchParams.get('tab') === 'new' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>NEW</button>
+            <button onClick={() => setTab('categories')} className={`text-xs font-bold transition-colors tracking-wider ${searchParams.get('tab') === 'categories' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>CATEGORIES</button>
           </div>
 
           {/* Mobile Search Toggle */}
@@ -121,19 +121,19 @@ export default function Navbar() {
             </button>
             <button 
               onClick={() => setTab('trending')} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${currentTab === 'trending' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${searchParams.get('tab') === 'trending' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               <Flame className="w-5 h-5" /> Trending
             </button>
             <button 
               onClick={() => setTab('new')} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${currentTab === 'new' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${searchParams.get('tab') === 'new' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               <Sparkles className="w-5 h-5" /> New Releases
             </button>
             <button 
               onClick={() => setTab('categories')} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${currentTab === 'categories' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${searchParams.get('tab') === 'categories' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               <FolderHeart className="w-5 h-5" /> Categories
             </button>

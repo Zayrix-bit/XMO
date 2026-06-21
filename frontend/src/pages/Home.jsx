@@ -93,7 +93,7 @@ export default function Home() {
       <div className="mb-6 md:mb-8">
         <div>
           <h1 className="text-xl md:text-3xl font-black text-white mb-1.5 tracking-tight">
-            {tab === 'trending' && 'Trending Now'}
+            {(!searchParams.get('tab') || tab === 'trending') && 'Trending Now'}
             {tab === 'new' && 'New Releases'}
             {tab === 'categories' && 'Browse Categories'}
             {tab === 'countries' && 'Browse Countries'}

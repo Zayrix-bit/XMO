@@ -23,6 +23,7 @@ export default function Watch() {
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showAllRelated, setShowAllRelated] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
 
   // Custom player states & references
   const playerContainerRef = useRef(null);
@@ -685,22 +686,38 @@ export default function Watch() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-[#ff2a5f]/20 text-white hover:text-[#ff2a5f] border border-white/10 hover:border-[#ff2a5f]/50 px-5 py-3 rounded-2xl transition-all font-medium active:scale-95">
-                    <Heart className="w-5 h-5" /> Like
+                  <button 
+                    onClick={() => setIsLiked(!isLiked)} 
+                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-2xl transition-all font-medium active:scale-95 ${
+                      isLiked 
+                        ? 'bg-[#ff2a5f]/20 text-[#ff2a5f] border border-[#ff2a5f]/50' 
+                        : 'bg-white/5 text-white border border-white/10 hover:bg-[#ff2a5f]/20 hover:text-[#ff2a5f] hover:border-[#ff2a5f]/50'
+                    }`}
+                  >
+                    <Heart className="w-5 h-5" fill={isLiked ? 'currentColor' : 'none'} /> Like
                   </button>
-                  <button className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl transition-all font-medium active:scale-95">
+                  <button 
+                    onClick={async () => {
+                      if (navigator.share) {
+                        try {
+                          await navigator.share({
+                            title: videoData.title,
+                            text: 'Check out this video!',
+                            url: window.location.href
+                          });
+                        } catch (err) {
+                          // Ignore cancel errors
+                        }
+                      } else {
+                        // Fallback: copy link to clipboard
+                        await navigator.clipboard.writeText(window.location.href);
+                        alert('Link copied to clipboard!');
+                      }
+                    }} 
+                    className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl transition-all font-medium active:scale-95"
+                  >
                     <Share2 className="w-5 h-5" /> Share
                   </button>
-                  {videoData.original_url && (
-                    <a
-                      href={videoData.original_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#ff2a5f]/20 hover:bg-[#ff2a5f]/30 text-[#ff2a5f] border border-[#ff2a5f]/50 hover:border-[#ff2a5f] px-5 py-3 rounded-2xl transition-all font-medium active:scale-95"
-                    >
-                      View on Source
-                    </a>
-                  )}
                 </div>
               </div>
             </div>
