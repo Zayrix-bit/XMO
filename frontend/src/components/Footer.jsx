@@ -47,7 +47,7 @@ export default function Footer() {
               <h3 className="text-lg font-bold text-white">All other categories</h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8">
-              {sortedLetters.slice(0, 18).map(letter => (
+              {sortedLetters.map(letter => (
                 <div key={letter} className="space-y-3">
                   <div className="text-sm font-bold text-white flex items-center gap-2">
                     <span className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-[#ff2a5f] text-xs font-black">
