@@ -144,22 +144,36 @@ export default function Home() {
                 to={`/?tab=category&slug=${cat.slug}`}
                 className="relative aspect-[16/9] rounded-md md:rounded-lg overflow-hidden group transition-all"
               >
-                {/* Image Background */}
-                <img 
-                  src={cat.image || `https://picsum.photos/seed/${cat.slug}/400/225`} 
-                  alt={cat.name}
-                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  loading="lazy"
-                />
-                {/* Gradient Overlay for Text Readability - Just on the bottom half */}
-                <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
-                
-                {/* Category Text Overlay - Bottom Left aligned */}
-                <div className="absolute inset-0 flex flex-col justify-end p-2 md:p-3">
-                  <span className="font-bold text-white text-sm md:text-base drop-shadow-md">
-                    {cat.name}
-                  </span>
-                </div>
+                {cat.image ? (
+                  <>
+                    {/* Image Background if exists */}
+                    <img 
+                      src={cat.image} 
+                      alt={cat.name}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    {/* Gradient Overlay */}
+                    <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
+                    {/* Category Text Overlay - Bottom Left aligned */}
+                    <div className="absolute inset-0 flex flex-col justify-end p-2 md:p-3">
+                      <span className="font-bold text-white text-sm md:text-base drop-shadow-md">
+                        {cat.name}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Solid background if no image */}
+                    <div className="absolute inset-0 bg-[#1a1a20] hover:bg-[#ff2a5f]/20 border border-white/5 hover:border-[#ff2a5f]/40 transition-all"></div>
+                    {/* Centered Category Text */}
+                    <div className="absolute inset-0 flex flex-col justify-center items-center p-2 md:p-3">
+                      <span className="font-bold text-white text-sm md:text-base text-center">
+                        {cat.name}
+                      </span>
+                    </div>
+                  </>
+                )}
               </Link>
             ))
           )}
@@ -178,19 +192,36 @@ export default function Home() {
                 to={`/?tab=category&slug=${cat.slug}`}
                 className="relative aspect-[16/9] rounded-md md:rounded-lg overflow-hidden group transition-all"
               >
-                <img 
-                  src={cat.image || `https://picsum.photos/seed/${cat.slug}/400/225`} 
-                  alt={cat.name}
-                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  loading="lazy"
-                />
-                <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
-                
-                <div className="absolute inset-0 flex flex-col justify-end p-2 md:p-3">
-                  <span className="font-bold text-white text-sm md:text-base drop-shadow-md">
-                    {cat.name}
-                  </span>
-                </div>
+                {cat.image ? (
+                  <>
+                    {/* Image Background if exists */}
+                    <img 
+                      src={cat.image} 
+                      alt={cat.name}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    {/* Gradient Overlay */}
+                    <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
+                    {/* Category Text Overlay - Bottom Left aligned */}
+                    <div className="absolute inset-0 flex flex-col justify-end p-2 md:p-3">
+                      <span className="font-bold text-white text-sm md:text-base drop-shadow-md">
+                        {cat.name}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Solid background if no image */}
+                    <div className="absolute inset-0 bg-[#1a1a20] hover:bg-[#ff2a5f]/20 border border-white/5 hover:border-[#ff2a5f]/40 transition-all"></div>
+                    {/* Centered Category Text */}
+                    <div className="absolute inset-0 flex flex-col justify-center items-center p-2 md:p-3">
+                      <span className="font-bold text-white text-sm md:text-base text-center">
+                        {cat.name}
+                      </span>
+                    </div>
+                  </>
+                )}
               </Link>
             ))
           )}

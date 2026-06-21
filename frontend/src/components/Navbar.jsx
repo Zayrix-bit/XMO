@@ -1,4 +1,4 @@
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Search, Flame, X, Menu, Sparkles, FolderHeart } from 'lucide-react';
 import { useState } from 'react';
 
@@ -8,34 +8,36 @@ export default function Navbar() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (search.trim()) {
-      navigate(`/?q=${encodeURIComponent(search.trim())}`);
+      navigate(`/?q=${encodeURIComponent(search.trim())}`, { replace: true });
       setMobileSearch(false);
       setMobileMenu(false);
     }
   };
 
   const goHome = () => {
-    const params = new URLSearchParams(); // clear all params
-    setSearchParams(params);
+    navigate('/', { replace: true });
     setMobileMenu(false);
   };
 
   const setTab = (tab) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('tab', tab);
-    params.set('page', '1');
-    // Remove other params when switching tabs
-    params.delete('q');
-    params.delete('slug');
-    setSearchParams(params);
+    // If we're not on home, go to home first
+    if (location.pathname !== '/') {
+      navigate(`/?tab=${tab}&page=1`, { replace: true });
+    } else {
+      const params = new URLSearchParams();
+      params.set('tab', tab);
+      params.set('page', '1');
+      setSearchParams(params);
+    }
     setMobileMenu(false);
   };
 
-  const currentTab = searchParams.get('tab') || 'trending';
+  const activeTab = searchParams.get('tab');
 
   return (
     <nav className="fixed top-0 left-0 w-full z-50 bg-[#0f0f13]/90 backdrop-blur-md border-b border-white/5 h-[70px]">
@@ -66,12 +68,12 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           {/* Desktop Links */}
           <div className="hidden md:flex items-center gap-3">
-            <button onClick={goHome} className={`text-xs font-bold transition-colors tracking-wider ${!searchParams.get('tab') ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>HOME</button>
-            <button onClick={() => setTab('trending')} className={`text-xs font-bold transition-colors flex items-center gap-1 tracking-wider ${searchParams.get('tab') === 'trending' ? 'text-[#ff2a5f] hover:text-[#ff7e40]' : 'text-gray-300 hover:text-white'}`}>
+            <button onClick={goHome} className={`text-xs font-bold transition-colors tracking-wider ${!activeTab ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>HOME</button>
+            <button onClick={() => setTab('trending')} className={`text-xs font-bold transition-colors flex items-center gap-1 tracking-wider ${activeTab === 'trending' ? 'text-[#ff2a5f] hover:text-[#ff7e40]' : 'text-gray-300 hover:text-white'}`}>
               <Flame className="w-3.5 h-3.5" /> TRENDING
             </button>
-            <button onClick={() => setTab('new')} className={`text-xs font-bold transition-colors tracking-wider ${searchParams.get('tab') === 'new' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>NEW</button>
-            <button onClick={() => setTab('categories')} className={`text-xs font-bold transition-colors tracking-wider ${searchParams.get('tab') === 'categories' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>CATEGORIES</button>
+            <button onClick={() => setTab('new')} className={`text-xs font-bold transition-colors tracking-wider ${activeTab === 'new' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>NEW</button>
+            <button onClick={() => setTab('categories')} className={`text-xs font-bold transition-colors tracking-wider ${activeTab === 'categories' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>CATEGORIES</button>
           </div>
 
           {/* Mobile Search Toggle */}
@@ -115,25 +117,25 @@ export default function Navbar() {
           <div className="flex flex-col gap-2">
             <button 
               onClick={goHome} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${!searchParams.get('tab') ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${!activeTab ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               <Flame className="w-5 h-5" /> Home
             </button>
             <button 
               onClick={() => setTab('trending')} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${searchParams.get('tab') === 'trending' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${activeTab === 'trending' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               <Flame className="w-5 h-5" /> Trending
             </button>
             <button 
               onClick={() => setTab('new')} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${searchParams.get('tab') === 'new' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${activeTab === 'new' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               <Sparkles className="w-5 h-5" /> New Releases
             </button>
             <button 
               onClick={() => setTab('categories')} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${searchParams.get('tab') === 'categories' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${activeTab === 'categories' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
             >
               <FolderHeart className="w-5 h-5" /> Categories
             </button>
