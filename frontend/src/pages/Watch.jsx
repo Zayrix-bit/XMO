@@ -907,6 +907,12 @@ export default function Watch() {
                     <h3 className="text-lg font-bold text-white">
                       More from {videoData.uploader?.name || videoData.uploader?.username}
                     </h3>
+                    <Link
+                      to={`/creator/${videoData.uploader?.profile_url?.split('/').pop()}`}
+                      className="text-sm font-semibold text-[#ff2a5f] hover:text-[#ff4a7a] transition-colors flex items-center gap-1"
+                    >
+                      View All
+                    </Link>
                   </div>
                   
                   {creatorLoading ? (
