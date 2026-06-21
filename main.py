@@ -216,7 +216,7 @@ def parse_video_list(html_or_soup):
                             'duration': duration,
                             'views': views
                         })
-                except Exception:
+                except Exception as e:
                     continue
     except Exception:
         pass

@@ -1,27 +1,26 @@
+
 import requests
-import json
 
-API_BASE = "http://localhost:8000"
+# Clear cache first!
+print("Clearing cache...")
+cache_clear_url = "http://localhost:8000/api/clear-cache"
+response = requests.get(cache_clear_url)
+print(f"Cache clear: {response.status_code} - {response.json()}")
 
-query = "lesbian"
-page = 1
+# Now call search
+url = "http://localhost:8000/api/search?q=lesbian&page=1"
+print(f"\nCalling API: {url}")
+response = requests.get(url)
 
-print(f"Calling API: {API_BASE}/api/search?q={query}&page={page}")
-r = requests.get(f"{API_BASE}/api/search?q={query}&page={page}")
+print(f"Status: {response.status_code}")
 
-print(f"Status: {r.status_code}")
-data = r.json()
+data = response.json()
+
 print(f"Response keys: {list(data.keys())}")
 
-if data.get('status') == 'success':
+if data.get("status") == "success":
     print(f"Used domain: {data.get('used_domain')}")
     print(f"Number of results: {len(data.get('results', []))}")
-    print(f"First 3 results:")
-    for i, video in enumerate(data['results'][:3]):
-        print(f"\n  Video {i+1}:")
-        print(f"  Title: {video.get('title')}")
-        print(f"  Link: {video.get('link')}")
-        print(f"  Image: {video.get('image')}")
-else:
-    print("Error")
-    print(json.dumps(data, indent=2))
+    print("\nAll results (index + title):")
+    for i, video in enumerate(data.get('results', [])):
+        print(f"{i+1}. {video.get('title')}")

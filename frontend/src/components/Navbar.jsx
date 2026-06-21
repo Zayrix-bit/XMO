@@ -44,46 +44,52 @@ export default function Navbar() {
   const activeTab = searchParams.get('tab');
 
   return (
-    <nav className="fixed top-0 left-0 w-full z-50 bg-[#0f0f13]/90 backdrop-blur-md border-b border-white/5 h-[70px]">
-      <div className="max-w-[1600px] mx-auto px-4 h-full flex items-center justify-between">
-        <button onClick={goHome} className="flex items-center gap-2 group shrink-0">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff2a5f] to-[#ff7e40] flex items-center justify-center">
-            <Flame className="w-6 h-6 text-white" />
+    <nav className="fixed top-0 left-0 w-full z-50 bg-[#0a0a0f]/95 backdrop-blur-xl border-b border-white/[0.08] h-[64px]">
+      <div className="max-w-[1600px] mx-auto px-6 h-full flex items-center justify-between gap-8">
+        <button onClick={goHome} className="flex items-center gap-3 group shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-[#ff2a5f] flex items-center justify-center">
+            <Flame className="w-5 h-5 text-white" />
           </div>
-          <span className="text-2xl font-black tracking-tight hidden sm:inline">
-            NIGHT<span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff2a5f] to-[#ff7e40]">HUB</span>
+          <span className="text-xl font-black tracking-tight hidden sm:inline">
+            NIGHT<span className="text-[#ff2a5f]">HUB</span>
           </span>
         </button>
 
         {/* Desktop Search */}
-        <form onSubmit={handleSearch} className="flex-1 max-w-xl mx-8 relative hidden md:block">
+        <form onSubmit={handleSearch} className="flex-1 max-w-2xl relative hidden md:block">
           <div className="relative flex items-center">
-            <Search className="absolute left-4 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-5 w-4.5 h-4.5 text-gray-500" />
             <input 
               type="text" 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search for amazing content..." 
-              className="w-full bg-white/5 border border-white/10 rounded-full py-2.5 pl-12 pr-6 text-white placeholder-gray-500 focus:outline-none focus:border-[#ff2a5f]/50 focus:bg-white/10 transition-all"
+              placeholder="Search videos..." 
+              className="w-full bg-[#121218] border border-white/[0.08] rounded-full py-2.5 pl-14 pr-6 text-white placeholder-gray-500 focus:outline-none focus:border-white/[0.15] focus:bg-[#14141c] transition-all text-sm"
             />
           </div>
         </form>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* Desktop Links */}
-          <div className="hidden md:flex items-center gap-3">
-            <button onClick={goHome} className={`text-xs font-bold transition-colors tracking-wider ${!activeTab ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>HOME</button>
-            <button onClick={() => setTab('trending')} className={`text-xs font-bold transition-colors flex items-center gap-1 tracking-wider ${activeTab === 'trending' ? 'text-[#ff2a5f] hover:text-[#ff7e40]' : 'text-gray-300 hover:text-white'}`}>
-              <Flame className="w-3.5 h-3.5" /> TRENDING
+          <div className="hidden md:flex items-center gap-1.5">
+            <button onClick={goHome} className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${!activeTab ? 'text-white bg-white/[0.08]' : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'}`}>
+              Home
             </button>
-            <button onClick={() => setTab('new')} className={`text-xs font-bold transition-colors tracking-wider ${activeTab === 'new' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>NEW</button>
-            <button onClick={() => setTab('categories')} className={`text-xs font-bold transition-colors tracking-wider ${activeTab === 'categories' ? 'text-[#ff2a5f]' : 'text-gray-300 hover:text-white'}`}>CATEGORIES</button>
+            <button onClick={() => setTab('trending')} className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors flex items-center gap-1.5 ${activeTab === 'trending' ? 'text-white bg-white/[0.08]' : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'}`}>
+              <Flame className="w-4 h-4" /> Trending
+            </button>
+            <button onClick={() => setTab('new')} className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab === 'new' ? 'text-white bg-white/[0.08]' : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'}`}>
+              New
+            </button>
+            <button onClick={() => setTab('categories')} className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${activeTab === 'categories' ? 'text-white bg-white/[0.08]' : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'}`}>
+              Categories
+            </button>
           </div>
 
           {/* Mobile Search Toggle */}
           <button 
             onClick={() => { setMobileSearch(!mobileSearch); setMobileMenu(false); }} 
-            className="md:hidden text-gray-400 hover:text-white p-2 rounded-xl transition-all active:scale-90 hover:bg-white/5"
+            className="md:hidden text-gray-400 hover:text-white p-2 rounded-lg transition-all hover:bg-white/[0.05]"
           >
             {mobileSearch ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
           </button>
@@ -91,7 +97,7 @@ export default function Navbar() {
           {/* Mobile Menu Toggle */}
           <button 
             onClick={() => { setMobileMenu(!mobileMenu); setMobileSearch(false); }} 
-            className="md:hidden text-gray-400 hover:text-white p-2 rounded-xl transition-all active:scale-90 hover:bg-white/5"
+            className="md:hidden text-gray-400 hover:text-white p-2 rounded-lg transition-all hover:bg-white/[0.05]"
           >
             {mobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -100,9 +106,9 @@ export default function Navbar() {
 
       {/* Mobile Search Bar */}
       {mobileSearch && (
-        <div className="md:hidden bg-[#0f0f13] border-b border-white/5 px-4 py-3 mobile-search-enter">
-          <form onSubmit={handleSearch} className="flex items-center bg-white/5 border border-white/10 rounded-full px-4 py-2">
-            <Search className="w-4 h-4 text-gray-400 mr-2" />
+        <div className="md:hidden bg-[#0a0a0f] border-b border-white/[0.08] px-6 py-3">
+          <form onSubmit={handleSearch} className="flex items-center bg-[#121218] border border-white/[0.08] rounded-lg px-4 py-2.5">
+            <Search className="w-4 h-4 text-gray-500 mr-3" />
             <input
               type="text"
               value={search}
@@ -117,31 +123,31 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {mobileMenu && (
-        <div className="md:hidden absolute top-[70px] left-0 w-full bg-[#0f0f13] border-b border-white/5 px-4 py-4 mobile-search-enter shadow-2xl shadow-black/60 z-40">
-          <div className="flex flex-col gap-2">
+        <div className="md:hidden absolute top-[64px] left-0 w-full bg-[#0a0a0f] border-b border-white/[0.08] px-6 py-4 shadow-2xl shadow-black/50">
+          <div className="flex flex-col gap-1">
             <button 
               onClick={goHome} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${!activeTab ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-2.5 rounded-lg transition-all ${!activeTab ? 'bg-white/[0.08] text-white font-semibold' : 'text-gray-400 hover:bg-white/[0.05] hover:text-white'}`}
             >
-              <Flame className="w-5 h-5" /> Home
+              Home
             </button>
             <button 
               onClick={() => setTab('trending')} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${activeTab === 'trending' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-2.5 rounded-lg transition-all flex items-center gap-2 ${activeTab === 'trending' ? 'bg-white/[0.08] text-white font-semibold' : 'text-gray-400 hover:bg-white/[0.05] hover:text-white'}`}
             >
-              <Flame className="w-5 h-5" /> Trending
+              <Flame className="w-4 h-4" /> Trending
             </button>
             <button 
               onClick={() => setTab('new')} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${activeTab === 'new' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-2.5 rounded-lg transition-all ${activeTab === 'new' ? 'bg-white/[0.08] text-white font-semibold' : 'text-gray-400 hover:bg-white/[0.05] hover:text-white'}`}
             >
-              <Sparkles className="w-5 h-5" /> New Releases
+              New
             </button>
             <button 
               onClick={() => setTab('categories')} 
-              className={`text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${activeTab === 'categories' ? 'bg-gradient-to-r from-[#ff2a5f]/20 to-[#ff7e40]/20 text-[#ff2a5f] font-bold border border-[#ff2a5f]/40' : 'text-gray-300 hover:bg-white/5 hover:text-white border border-transparent'}`}
+              className={`text-left px-4 py-2.5 rounded-lg transition-all ${activeTab === 'categories' ? 'bg-white/[0.08] text-white font-semibold' : 'text-gray-400 hover:bg-white/[0.05] hover:text-white'}`}
             >
-              <FolderHeart className="w-5 h-5" /> Categories
+              Categories
             </button>
           </div>
         </div>

@@ -4,48 +4,10 @@
 
 @layer base {
   body {
-    @apply bg-[#0f0f13] text-white overflow-x-hidden;
+    @apply bg-[#08080c] text-white overflow-x-hidden;
   }
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #ff2a5f;
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #ff7e40;
-}
-
-/* Mobile Menu Animations */
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideRight {
-  from { opacity: 0; transform: translateX(-100%); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-.mobile-search-enter {
-  animation: slideDown 0.2s ease-out forwards;
-}
-
-.mobile-backdrop-enter {
-  animation: fadeIn 0.2s ease-out forwards;
-}
-
-.mobile-sidebar-enter {
-  animation: slideRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+* {
+  @apply select-none;
 }
