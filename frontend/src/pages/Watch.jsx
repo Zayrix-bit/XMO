@@ -24,6 +24,7 @@ export default function Watch() {
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showAllRelated, setShowAllRelated] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [titleExpanded, setTitleExpanded] = useState(false);
 
   // Custom player states & references
   const playerContainerRef = useRef(null);
@@ -458,7 +459,23 @@ export default function Watch() {
         ) : hasStream ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             {/* Left Column: Video Player & Video Details */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-4">
+              {/* Title Section */}
+              <div>
+                <h1 
+                  onClick={() => setTitleExpanded(!titleExpanded)}
+                  className={`text-xl md:text-2xl font-bold text-white mb-2 cursor-pointer hover:text-white/90 transition-colors ${!titleExpanded ? 'line-clamp-2' : ''}`}
+                >
+                  {videoData.title || "Now Playing"}
+                </h1>
+                <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm text-gray-400">
+                  <span className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-full text-white/90 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                    {qualities.length > 0 ? 'HLS' : 'MP4'}
+                  </span>
+                </div>
+              </div>
+              
               {/* Video Player Wrapper Container */}
               <div 
                 ref={playerContainerRef}
@@ -466,7 +483,7 @@ export default function Watch() {
                 onMouseLeave={handleMouseLeave}
                 onClick={togglePlay}
                 onDoubleClick={handleDoubleClick}
-                className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl shadow-black/60 border border-white/10 group select-none cursor-pointer"
+                className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-lg border border-white/10 group select-none cursor-pointer"
               >
                 <video
                   ref={videoRef}
@@ -479,24 +496,24 @@ export default function Watch() {
 
                 {/* Double Click Skip Animation Overlay */}
                 {showLeftRipple && (
-                  <div className="absolute inset-y-0 left-0 w-1/3 bg-white/5 backdrop-blur-[0.5px] flex items-center justify-center rounded-l-2xl pointer-events-none z-20 ripple-animate">
-                    <div className="flex flex-col items-center gap-1.5 bg-black/45 px-5 py-4 rounded-full border border-white/5">
+                  <div className="absolute inset-y-0 left-0 w-1/3 bg-white/5 backdrop-blur-[0.5px] flex items-center justify-center rounded-l-xl pointer-events-none z-20 ripple-animate">
+                    <div className="flex flex-col items-center gap-1 bg-black/45 px-4 py-3 rounded-full border border-white/5">
                       <div className="flex gap-0.5">
-                        <ChevronLeft className="w-6 h-6 text-white animate-pulse" />
-                        <ChevronLeft className="w-6 h-6 text-white" />
+                        <ChevronLeft className="w-5 h-5 text-white animate-pulse" />
+                        <ChevronLeft className="w-5 h-5 text-white" />
                       </div>
-                      <span className="text-[10px] font-extrabold text-white tracking-widest uppercase">-10s</span>
+                      <span className="text-[9px] font-extrabold text-white tracking-widest uppercase">-10s</span>
                     </div>
                   </div>
                 )}
                 {showRightRipple && (
-                  <div className="absolute inset-y-0 right-0 w-1/3 bg-white/5 backdrop-blur-[0.5px] flex items-center justify-center rounded-r-2xl pointer-events-none z-20 ripple-animate">
-                    <div className="flex flex-col items-center gap-1.5 bg-black/45 px-5 py-4 rounded-full border border-white/5">
+                  <div className="absolute inset-y-0 right-0 w-1/3 bg-white/5 backdrop-blur-[0.5px] flex items-center justify-center rounded-r-xl pointer-events-none z-20 ripple-animate">
+                    <div className="flex flex-col items-center gap-1 bg-black/45 px-4 py-3 rounded-full border border-white/5">
                       <div className="flex gap-0.5">
-                        <ChevronRight className="w-6 h-6 text-white" />
-                        <ChevronRight className="w-6 h-6 text-white animate-pulse" />
+                        <ChevronRight className="w-5 h-5 text-white" />
+                        <ChevronRight className="w-5 h-5 text-white animate-pulse" />
                       </div>
-                      <span className="text-[10px] font-extrabold text-white tracking-widest uppercase">+10s</span>
+                      <span className="text-[9px] font-extrabold text-white tracking-widest uppercase">+10s</span>
                     </div>
                   </div>
                 )}
@@ -516,7 +533,7 @@ export default function Watch() {
                 {/* Buffering/Loading Indicator */}
                 {isBuffering && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/35 pointer-events-none z-10">
-                    <Loader2 className="w-14 h-14 text-[#ff2a5f] animate-spin" />
+                    <Loader2 className="w-10 h-10 md:w-12 md:h-12 text-[#ff2a5f] animate-spin" />
                   </div>
                 )}
 
@@ -524,20 +541,20 @@ export default function Watch() {
                 <div 
                   onClick={(e) => e.stopPropagation()}
                   onDoubleClick={(e) => e.stopPropagation()}
-                  className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-4 md:p-6 transition-all duration-300 ${
+                  className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3 md:p-4 transition-all duration-300 ${
                     showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'
                   }`}
                 >
 
                   {/* Timeline (Progress Bar) */}
-                  <div className="w-full mb-4 flex items-center group/timeline">
+                  <div className="w-full mb-3 flex items-center group/timeline">
                     <input
                       type="range"
                       min={5}
                       max={duration || 100}
                       value={Math.max(currentTime, 5)}
                       onChange={handleSeek}
-                      className="w-full h-1.5 rounded-lg appearance-none cursor-pointer outline-none bg-white/20 accent-[#ff2a5f] transition-all hover:h-2 focus:outline-none"
+                      className="w-full h-1 rounded-full appearance-none cursor-pointer outline-none bg-white/20 accent-[#ff2a5f] transition-all hover:h-1.5 focus:outline-none"
                       style={{
                         background: `linear-gradient(to right, #ff2a5f 0%, #ff2a5f ${
                           duration > 5 ? ((currentTime - 5) / (duration - 5)) * 100 : 0
@@ -550,7 +567,7 @@ export default function Watch() {
 
                   {/* Playback Controls Row */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 md:gap-5">
+                    <div className="flex items-center gap-3 md:gap-4">
                       {/* Skip Back Button */}
                       <button 
                         onClick={(e) => {
@@ -563,7 +580,7 @@ export default function Watch() {
                         title="Rewind 10s"
                         className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
                       >
-                        <RotateCcw className="w-5 h-5 md:w-6 md:h-6" />
+                        <RotateCcw className="w-4 h-4 md:w-5 md:h-5" />
                       </button>
 
                       {/* Play/Pause Button */}
@@ -571,7 +588,7 @@ export default function Watch() {
                         onClick={togglePlay}
                         className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
                       >
-                        {isPlaying ? <Pause className="w-6 h-6 md:w-7 md:h-7" /> : <Play className="w-6 h-6 md:w-7 md:h-7 fill-current" />}
+                        {isPlaying ? <Pause className="w-5 h-5 md:w-6 md:h-6" /> : <Play className="w-5 h-5 md:w-6 md:h-6 fill-current" />}
                       </button>
 
                       {/* Skip Forward Button */}
@@ -586,7 +603,7 @@ export default function Watch() {
                         title="Forward 10s"
                         className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
                       >
-                        <RotateCw className="w-5 h-5 md:w-6 md:h-6" />
+                        <RotateCw className="w-4 h-4 md:w-5 md:h-5" />
                       </button>
 
                       {/* Volume Slider Section */}
@@ -596,9 +613,9 @@ export default function Watch() {
                           className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
                         >
                           {isMuted || volume === 0 ? (
-                            <VolumeX className="w-5 h-5 md:w-6 md:h-6" />
+                            <VolumeX className="w-4 h-4 md:w-5 md:h-5" />
                           ) : (
-                            <Volume2 className="w-5 h-5 md:w-6 md:h-6" />
+                            <Volume2 className="w-4 h-4 md:w-5 md:h-5" />
                           )}
                         </button>
                         <input
@@ -608,48 +625,48 @@ export default function Watch() {
                           step={0.05}
                           value={isMuted ? 0 : volume}
                           onChange={handleVolumeChange}
-                          className="w-0 opacity-0 group-hover/volume:w-16 md:group-hover/volume:w-20 group-hover/volume:opacity-100 transition-all duration-300 h-1 rounded-lg appearance-none bg-white/30 accent-[#ff2a5f] cursor-pointer"
+                          className="w-0 opacity-0 group-hover/volume:w-14 md:group-hover/volume:w-18 group-hover/volume:opacity-100 transition-all duration-300 h-1 rounded-full appearance-none bg-white/30 accent-[#ff2a5f] cursor-pointer"
                         />
                       </div>
 
                       {/* Time Duration Label */}
-                      <div className="text-white text-xs md:text-sm font-semibold tracking-wide">
+                      <div className="text-white text-[10px] md:text-xs font-semibold tracking-wide">
                         {formatTime(Math.max(currentTime - 5, 0))} <span className="text-white/40 mx-1">/</span> {formatTime(Math.max(duration - 5, 0))}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4 md:gap-5">
+                    <div className="flex items-center gap-3 md:gap-4">
                       {/* Quality Selector Pop-up Menu */}
                       {qualities.length > 0 && (
                         <div className="relative">
                           <button
                             onClick={() => setShowQualityMenu(!showQualityMenu)}
-                            className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none flex items-center gap-1.5 text-xs md:text-sm font-bold bg-white/10 hover:bg-white/15 px-3 py-1.5 rounded-xl border border-white/5"
+                            className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none flex items-center gap-1.5 text-[10px] md:text-xs font-bold bg-white/10 hover:bg-white/15 px-2.5 py-1.5 rounded-lg border border-white/5"
                           >
-                            <Settings className="w-4 h-4" />
+                            <Settings className="w-3.5 h-3.5" />
                             {currentQuality === -1 ? 'Auto' : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}
                           </button>
 
                           {showQualityMenu && (
-                            <div className="absolute bottom-full right-0 mb-3 bg-black/90 backdrop-blur-xl border border-white/15 rounded-2xl overflow-hidden shadow-2xl min-w-[150px] z-30 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                              <div className="px-4 py-2.5 border-b border-white/10">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quality</span>
+                            <div className="absolute bottom-full right-0 mb-2 bg-black/90 backdrop-blur-xl border border-white/15 rounded-xl overflow-hidden shadow-lg min-w-[130px] z-30 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                              <div className="px-3 py-1.5 border-b border-white/10">
+                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Quality</span>
                               </div>
                               <button
                                 onClick={() => switchQuality(-1)}
-                                className={`w-full px-5 py-2.5 text-left text-xs md:text-sm flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === -1 ? 'text-[#ff2a5f] font-bold' : 'text-white'}`}
+                                className={`w-full px-4 py-1.5 text-left text-[10px] md:text-xs flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === -1 ? 'text-[#ff2a5f] font-bold' : 'text-white'}`}
                               >
                                 Auto
-                                {currentQuality === -1 && <Check className="w-3.5 h-3.5" />}
+                                {currentQuality === -1 && <Check className="w-3 h-3" />}
                               </button>
                               {qualities.sort((a, b) => b.height - a.height).map((q) => (
                                 <button
                                   key={q.index}
                                   onClick={() => switchQuality(q.index)}
-                                  className={`w-full px-5 py-2.5 text-left text-xs md:text-sm flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === q.index ? 'text-[#ff2a5f] font-bold' : 'text-white'}`}
+                                  className={`w-full px-4 py-1.5 text-left text-[10px] md:text-xs flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === q.index ? 'text-[#ff2a5f] font-bold' : 'text-white'}`}
                                 >
                                   {q.label}
-                                  {currentQuality === q.index && <Check className="w-3.5 h-3.5" />}
+                                  {currentQuality === q.index && <Check className="w-3 h-3" />}
                                 </button>
                               ))}
                             </div>
@@ -662,97 +679,81 @@ export default function Watch() {
                         onClick={toggleFullscreen}
                         className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
                       >
-                        {isFullscreen ? <Minimize className="w-5 h-5 md:w-6 md:h-6" /> : <Maximize className="w-5 h-5 md:w-6 md:h-6" />}
+                        {isFullscreen ? <Minimize className="w-4 h-4 md:w-5 md:h-5" /> : <Maximize className="w-4 h-4 md:w-5 md:h-5" />}
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
               
-              {/* Video Info */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 md:p-7 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div className="flex-1">
-                  <h1 className="text-lg md:text-2xl font-bold text-white mb-3 line-clamp-2">
-                    {videoData.title || "Now Playing"}
-                  </h1>
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400">
-                    <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-full text-white font-semibold">
-                      <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
-                      {qualities.length > 0 ? 'HLS' : 'MP4'}
-                    </span>
-                    <span>Scraped securely</span>
-                    <span>•</span>
-                    <span>Premium Source</span>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  <button 
-                    onClick={() => setIsLiked(!isLiked)} 
-                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-2xl transition-all font-medium active:scale-95 ${
-                      isLiked 
-                        ? 'bg-[#ff2a5f]/20 text-[#ff2a5f] border border-[#ff2a5f]/50' 
-                        : 'bg-white/5 text-white border border-white/10 hover:bg-[#ff2a5f]/20 hover:text-[#ff2a5f] hover:border-[#ff2a5f]/50'
-                    }`}
-                  >
-                    <Heart className="w-5 h-5" fill={isLiked ? 'currentColor' : 'none'} /> Like
-                  </button>
-                  <button 
-                    onClick={async () => {
-                      if (navigator.share) {
-                        try {
-                          await navigator.share({
-                            title: videoData.title,
-                            text: 'Check out this video!',
-                            url: window.location.href
-                          });
-                        } catch (err) {
-                          // Ignore cancel errors
-                        }
-                      } else {
-                        // Fallback: copy link to clipboard
-                        await navigator.clipboard.writeText(window.location.href);
-                        alert('Link copied to clipboard!');
+              {/* Video Actions */}
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setIsLiked(!isLiked)} 
+                  className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl transition-all font-medium text-sm active:scale-95 ${
+                    isLiked 
+                      ? 'bg-[#ff2a5f]/20 text-[#ff2a5f] border border-[#ff2a5f]/50' 
+                      : 'bg-white/5 text-white border border-white/10 hover:bg-[#ff2a5f]/20 hover:text-[#ff2a5f] hover:border-[#ff2a5f]/50'
+                  }`}
+                >
+                  <Heart className="w-4 h-4" fill={isLiked ? 'currentColor' : 'none'} /> Like
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({
+                          title: videoData.title,
+                          text: 'Check out this video!',
+                          url: window.location.href
+                        });
+                      } catch (err) {
+                        // Ignore cancel errors
                       }
-                    }} 
-                    className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-5 py-3 rounded-2xl transition-all font-medium active:scale-95"
-                  >
-                    <Share2 className="w-5 h-5" /> Share
-                  </button>
-                </div>
+                    } else {
+                      // Fallback: copy link to clipboard
+                      await navigator.clipboard.writeText(window.location.href);
+                      alert('Link copied to clipboard!');
+                    }
+                  }} 
+                  className="flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-4 py-2 rounded-xl transition-all font-medium text-sm active:scale-95"
+                >
+                  <Share2 className="w-4 h-4" /> Share
+                </button>
               </div>
             </div>
 
             {/* Right Column: Related Videos List */}
-            <div className="lg:col-span-1 space-y-6">
+            <div className="lg:col-span-1 space-y-4">
               {relatedVideos.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-white">Related Videos</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-white">Related</h3>
                     <div 
                       onClick={() => setAutoPlayNext(!autoPlayNext)}
-                      className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 select-none hover:text-white transition-colors"
+                      className="flex items-center gap-2 cursor-pointer text-[10px] text-gray-400 select-none hover:text-white transition-colors"
                     >
-                      <span>Autoplay Next</span>
+                      <span>Autoplay</span>
                       <div 
-                        className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${autoPlayNext ? 'bg-[#ff2a5f]' : 'bg-white/20'}`}
+                        className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${autoPlayNext ? 'bg-[#ff2a5f]' : 'bg-white/20'}`}
                       >
                         <div 
-                          className={`absolute top-0.5 left-0.5 w-3.5 h-3 rounded-full bg-white transition-transform duration-200 ${autoPlayNext ? 'translate-x-3.5' : 'translate-x-0'}`}
+                          className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${autoPlayNext ? 'translate-x-3' : 'translate-x-0'}`}
                         />
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-3.5">
+                  <div className="flex flex-col gap-2.5">
                     {(showAllRelated ? relatedVideos : relatedVideos.slice(0, 8)).map((video, index) => {
                       const videoId = video.id || video.link.split('-').pop().replace('/', '');
                       return (
                         <Link 
                           to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} 
                           key={index} 
-                          className="group flex gap-3.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 p-2 rounded-2xl transition-all duration-300 active:scale-[0.98]"
+                          className="group flex gap-2.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 p-1.5 rounded-xl transition-all duration-200 active:scale-[0.98]"
                         >
                           {/* Thumbnail */}
-                          <div className="relative w-32 xl:w-40 aspect-video rounded-xl overflow-hidden bg-black flex-shrink-0">
+                          <div className="relative w-28 md:w-32 aspect-video rounded-lg overflow-hidden bg-black flex-shrink-0">
                             {video.image && (
                               <img 
                                 src={video.image} 
@@ -762,37 +763,36 @@ export default function Watch() {
                               />
                             )}
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <div className="w-8 h-8 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-all duration-300">
-                                <Play className="w-3.5 h-3.5 text-white ml-0.5" />
+                              <div className="w-7 h-7 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-all duration-300">
+                                <Play className="w-3 h-3 text-white ml-0.5" />
                               </div>
                             </div>
                             {video.duration && (
-                              <div className="absolute bottom-1 right-1 bg-black/85 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-semibold text-white flex items-center gap-1">
-                                <Clock className="w-2.5 h-2.5 text-[#ff2a5f]" /> {video.duration}
+                              <div className="absolute bottom-0.5 right-0.5 bg-black/85 backdrop-blur-md px-1.5 py-0.5 rounded-md text-[9px] font-semibold text-white flex items-center gap-0.5">
+                                <Clock className="w-2 h-2 text-[#ff2a5f]" /> {video.duration}
                               </div>
                             )}
                           </div>
                           {/* Info */}
-                          <div className="flex flex-col justify-between flex-1 min-w-0 py-1">
-                            <h4 className="text-xs xl:text-sm font-semibold text-gray-200 group-hover:text-white line-clamp-2 transition-colors leading-snug">
+                          <div className="flex flex-col justify-between flex-1 min-w-0 py-0.5">
+                            <h4 className="text-[11px] md:text-xs font-semibold text-gray-200 group-hover:text-white line-clamp-2 transition-colors leading-snug">
                               {video.title}
                             </h4>
-                            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Related</span>
                           </div>
                         </Link>
                       );
                     })}
                   </div>
                   {relatedVideos.length > 8 && (
-                    <div className="mt-6 flex justify-center">
+                    <div className="mt-4 flex justify-center">
                       <button
                         onClick={() => setShowAllRelated(!showAllRelated)}
-                        className="w-full bg-white/5 hover:bg-[#ff2a5f]/20 border border-white/10 hover:border-[#ff2a5f]/50 py-3 rounded-2xl text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 active:scale-95"
+                        className="w-full bg-white/5 hover:bg-[#ff2a5f]/20 border border-white/10 hover:border-[#ff2a5f]/50 py-2 rounded-xl text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95"
                       >
                         {showAllRelated ? (
-                          <>Show Less <ChevronUp className="w-4 h-4" /></>
+                          <>Show Less <ChevronUp className="w-3.5 h-3.5" /></>
                         ) : (
-                          <>Show More Related <ChevronDown className="w-4 h-4" /></>
+                          <>Show More <ChevronDown className="w-3.5 h-3.5" /></>
                         )}
                       </button>
                     </div>
