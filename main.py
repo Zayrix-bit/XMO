@@ -97,8 +97,16 @@ XHAMSTER_DOMAINS = [
 ]
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Referer': 'https://xhamster.com/',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    'Cache-Control': 'max-age=0',
+    'Upgrade-Insecure-Requests': '1'
 }
 
 
@@ -113,19 +121,26 @@ def fetch_with_fallback(path: str, use_https: bool = True):
     for domain in XHAMSTER_DOMAINS:
         try:
             url = f"{protocol}://{domain}{path}"
-            print(f"Trying domain: {url}")
-            response = requests.get(url, headers=HEADERS, timeout=10)
+            print(f"[DEBUG] Trying domain: {url}")
+            response = requests.get(url, headers=HEADERS, timeout=10, allow_redirects=True)
             response.raise_for_status()
-            print(f"Success with domain: {domain}")
+            print(f"[DEBUG] Success with domain: {domain}")
+            print(f"[DEBUG] Final URL (after redirects): {response.url}")
             return response, domain
         except Exception as e:
-            print(f"Failed with domain {domain}: {str(e)}")
+            print(f"[DEBUG] Failed with domain {domain}: {str(e)}")
             continue
     return None, None
 
 @app.get("/")
 def home():
     return {"status": "success", "message": "xHamster Scraper API is running!"}
+
+@app.get("/api/clear-cache")
+def clear_cache():
+    """Clear all cached responses"""
+    cache.clear()
+    return {"status": "success", "message": "Cache cleared successfully!"}
 
 def parse_video_list(html_or_soup):
     """Helper: extract video list from page HTML using embedded JSON data."""
@@ -137,6 +152,14 @@ def parse_video_list(html_or_soup):
             html = str(html_or_soup)
         
         page_data = extract_page_data(html)
+        
+        # Print search correction info if available
+        if page_data:
+            print(f"[DEBUG] page_data keys: {sorted(page_data.keys())}")
+            if 'entity' in page_data:
+                print(f"[DEBUG] entity: {page_data['entity']}")
+            if 'correction' in page_data:
+                print(f"[DEBUG] correction: {page_data['correction']}")
         
         # Check multiple possible paths for videoThumbProps
         video_thumb_props = None
@@ -189,7 +212,11 @@ def parse_video_list(html_or_soup):
 @app.get("/api/search")
 # @cache_response(ttl_seconds=3600)  # Temporarily disabled for debugging
 def search_videos(q: str = Query(..., description="Search query"), page: int = Query(1, description="Page number")):
-    path = f"/search/video?q={q}&page={page}"
+    # Encode spaces in query
+    query_encoded = q.replace(" ", "+")
+    path = f"/search/{query_encoded}"
+    if page > 1:
+        path += f"?page={page}"
     response, domain = fetch_with_fallback(path)
     
     if not response:
