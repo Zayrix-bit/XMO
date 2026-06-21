@@ -211,16 +211,73 @@ def clear_cache():
     cache.clear()
     return {"status": "success", "message": "Cache cleared successfully!"}
 
+@app.get("/api/creator/{creator_slug}")
+@cache_response(ttl_seconds=3600)
+def get_creator_videos(creator_slug: str, page: int = 1):
+    """Fetch creator's profile and videos."""
+    # First, try with /creators/ path
+    path = f"/creators/{creator_slug}"
+    if page > 1:
+        path += f"/{page}"
+    response, domain = fetch_with_fallback(path)
+    if not response:
+        # Try /users/ path as fallback
+        path = f"/users/{creator_slug}"
+        if page > 1:
+            path += f"/{page}"
+        response, domain = fetch_with_fallback(path)
+    
+    if not response:
+        return {"status": "error", "message": "Could not fetch creator profile"}
+    
+    page_data = extract_page_data(response.text)
+    creator = None
+    videos = []
+    if page_data:
+        # Extract creator info from infoComponent.pornstarTop
+        if 'infoComponent' in page_data and 'pornstarTop' in page_data['infoComponent']:
+            pornstar_top = page_data['infoComponent']['pornstarTop']
+            creator = {
+                'name': pornstar_top.get('name'),
+                'avatar': pornstar_top.get('thumbUrl'),
+                'country': pornstar_top.get('country'),
+                'translatedCountryName': pornstar_top.get('translatedCountryName'),
+                'viewsCount': format_views(pornstar_top.get('viewsCount')),
+                'videoCount': pornstar_top.get('videoCount'),
+                'rating': pornstar_top.get('rating'),
+                'subscribers': None
+            }
+            # Get subscribers from subscribeButtonsProps
+            if ('subscribeButtonsProps' in page_data['infoComponent'] and
+                'subscribeButtonProps' in page_data['infoComponent']['subscribeButtonsProps']):
+                creator['subscribers'] = page_data['infoComponent']['subscribeButtonsProps']['subscribeButtonProps'].get('subscribers')
+        
+        # Extract videos using our parse_video_list function
+        videos = parse_video_list(page_data)
+    
+    return {
+        "status": "success",
+        "creator": creator,
+        "videos": videos,
+        "page": page,
+        "used_domain": domain
+    }
+
 def parse_video_list(html_or_soup):
     """Helper: extract video list from page HTML using embedded JSON data."""
     videos = []
     try:
-        if isinstance(html_or_soup, str):
-            html = html_or_soup
+        page_data = None
+        if isinstance(html_or_soup, dict):
+            # If we already have page_data dict, use it directly
+            page_data = html_or_soup
         else:
-            html = str(html_or_soup)
-        
-        page_data = extract_page_data(html)
+            # If it's a string or soup object, extract page_data from it
+            if isinstance(html_or_soup, str):
+                html = html_or_soup
+            else:
+                html = str(html_or_soup)
+            page_data = extract_page_data(html)
         
         # Print search correction info if available
         if page_data:
@@ -253,6 +310,20 @@ def parse_video_list(html_or_soup):
                   'trendingVideoListProps' in page_data['pagesCategoryComponent'] and
                   'videoThumbProps' in page_data['pagesCategoryComponent']['trendingVideoListProps']):
                 video_thumb_props = page_data['pagesCategoryComponent']['trendingVideoListProps']['videoThumbProps']
+            # Path 5: for creator pages
+            else:
+                # Check all possible creator video section keys
+                creator_section_keys = [
+                    'newestVideoSectionComponent',
+                    'trendingVideoSectionComponent',
+                    'recommendedVideoSectionComponent'
+                ]
+                for key in creator_section_keys:
+                    if key in page_data:
+                        section_data = page_data[key]
+                        if 'videoListProps' in section_data and 'videoThumbProps' in section_data['videoListProps']:
+                            video_thumb_props = section_data['videoListProps']['videoThumbProps']
+                            break
         
         if video_thumb_props:
             for item in video_thumb_props:

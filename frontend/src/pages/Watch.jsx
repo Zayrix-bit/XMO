@@ -29,6 +29,11 @@ export default function Watch() {
   const [isScrubbing, setIsScrubbing] = useState(false);
   const canvasRef = useRef(null);
   const wasPlayingRef = useRef(false);
+  
+  // Creator data
+  const [creatorData, setCreatorData] = useState(null);
+  const [creatorVideos, setCreatorVideos] = useState([]);
+  const [creatorLoading, setCreatorLoading] = useState(false);
 
   // Custom player states & references
   const playerContainerRef = useRef(null);
@@ -95,6 +100,32 @@ export default function Watch() {
 
     if (id) fetchVideo();
   }, [id, originalUrl]);
+
+  // Fetch creator data
+  useEffect(() => {
+    const fetchCreator = async () => {
+      if (!videoData?.uploader?.profile_url) return;
+      
+      try {
+        setCreatorLoading(true);
+        // Extract creator slug from profile_url
+        const urlParts = videoData.uploader.profile_url.split('/');
+        const slug = urlParts[urlParts.length - 1];
+        
+        const response = await axios.get(`http://localhost:8000/api/creator/${slug}`);
+        if (response.data.status === 'success') {
+          setCreatorData(response.data.creator);
+          setCreatorVideos(response.data.videos);
+        }
+      } catch (err) {
+        console.error("Creator fetch error:", err);
+      } finally {
+        setCreatorLoading(false);
+      }
+    };
+    
+    fetchCreator();
+  }, [videoData?.uploader?.profile_url]);
 
   // Setup HLS.js or fallback to MP4
   useEffect(() => {
@@ -777,30 +808,56 @@ export default function Watch() {
                 </div>
               </div>
               
-              {/* Uploader Section */}
+              {/* Uploader & Creator Section */}
               {videoData.uploader && (
-                <div className="flex items-center gap-3 bg-[#121218] p-3 rounded-xl border border-white/[0.06]">
-                  {videoData.uploader.avatar ? (
-                    <img 
-                      src={videoData.uploader.avatar} 
-                      alt={videoData.uploader.name || videoData.uploader.username} 
-                      className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border border-white/10"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
-                      <User className="w-5 h-5 md:w-6 md:h-6 text-white/70" />
+                <div className="bg-[#121218] p-4 rounded-xl border border-white/[0.06]">
+                  <div className="flex items-center gap-3">
+                    {videoData.uploader.avatar ? (
+                      <img 
+                        src={videoData.uploader.avatar} 
+                        alt={videoData.uploader.name || videoData.uploader.username} 
+                        className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border border-white/10"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
+                        <User className="w-6 h-6 md:w-7 md:h-7 text-white/70" />
+                      </div>
+                    )}
+                    <div className="flex flex-col">
+                      <span className="text-sm md:text-base font-semibold text-white">
+                        {videoData.uploader.name || videoData.uploader.username}
+                      </span>
+                      {videoData.uploader.username && videoData.uploader.name && (
+                        <span className="text-xs text-gray-500">
+                          @{videoData.uploader.username}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Creator Stats (if available) */}
+                  {creatorData && (
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                      {creatorData.videoCount && (
+                        <div>
+                          <div className="text-lg font-bold text-white">{creatorData.videoCount}</div>
+                          <div className="text-xs text-gray-400">Videos</div>
+                        </div>
+                      )}
+                      {creatorData.viewsCount && (
+                        <div>
+                          <div className="text-lg font-bold text-white">{creatorData.viewsCount}</div>
+                          <div className="text-xs text-gray-400">Views</div>
+                        </div>
+                      )}
+                      {creatorData.subscribers && (
+                        <div>
+                          <div className="text-lg font-bold text-white">{creatorData.subscribers}</div>
+                          <div className="text-xs text-gray-400">Subscribers</div>
+                        </div>
+                      )}
                     </div>
                   )}
-                  <div className="flex flex-col">
-                    <span className="text-sm md:text-base font-semibold text-white">
-                      {videoData.uploader.name || videoData.uploader.username}
-                    </span>
-                    {videoData.uploader.username && videoData.uploader.name && (
-                      <span className="text-xs text-gray-500">
-                        @{videoData.uploader.username}
-                      </span>
-                    )}
-                  </div>
                 </div>
               )}
               
@@ -841,8 +898,81 @@ export default function Watch() {
               </div>
             </div>
 
-            {/* Right Column: Related Videos List */}
+            {/* Right Column: Creator Videos & Related Videos */}
             <div className="lg:col-span-1 space-y-4">
+              {/* Creator Videos */}
+              {creatorVideos.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-white">
+                      More from {videoData.uploader?.name || videoData.uploader?.username}
+                    </h3>
+                  </div>
+                  
+                  {creatorLoading ? (
+                    <div className="flex flex-col gap-2.5">
+                      {Array(3).fill(0).map((_, i) => (
+                        <div key={i} className="flex gap-2.5 animate-pulse">
+                          <div className="w-28 md:w-32 aspect-video bg-[#121218] rounded-lg flex-shrink-0"></div>
+                          <div className="flex-1 space-y-2 py-1">
+                            <div className="h-3 bg-[#121218] rounded w-full"></div>
+                            <div className="h-2 bg-[#121218] rounded w-1/3"></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {creatorVideos.map((video, index) => {
+                        const videoId = video.id || video.link.split('-').pop().replace('/', '');
+                        return (
+                          <Link 
+                            to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} 
+                            key={index} 
+                            className="group flex gap-2.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 p-1.5 rounded-xl transition-all duration-200 active:scale-[0.98]"
+                          >
+                            {/* Thumbnail */}
+                            <div className="relative w-28 md:w-32 aspect-video rounded-lg overflow-hidden bg-black flex-shrink-0">
+                              {video.image && (
+                                <img 
+                                  src={video.image} 
+                                  alt={video.title} 
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                  loading="lazy"
+                                />
+                              )}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <div className="w-7 h-7 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-all duration-300">
+                                  <Play className="w-3 h-3 text-white ml-0.5" />
+                                </div>
+                              </div>
+                              {video.duration && (
+                                <div className="absolute bottom-0.5 right-0.5 bg-black/85 backdrop-blur-md px-1.5 py-0.5 rounded-md text-[9px] font-semibold text-white flex items-center gap-0.5">
+                                  <Clock className="w-2 h-2 text-[#ff2a5f]" /> {video.duration}
+                                </div>
+                              )}
+                            </div>
+                            {/* Info */}
+                            <div className="flex flex-col justify-between flex-1 min-w-0 py-0.5">
+                              <h4 className="text-[11px] md:text-xs font-semibold text-gray-200 group-hover:text-white line-clamp-2 transition-colors leading-snug">
+                                {video.title}
+                              </h4>
+                              {video.views && (
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <Eye className="w-2.5 h-2.5 text-gray-500" />
+                                  <span className="text-[9px] text-gray-500">{video.views}</span>
+                                </div>
+                              )}
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Related Videos */}
               {relatedVideos.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-3">
