@@ -25,6 +25,10 @@ export default function Watch() {
   const [showAllRelated, setShowAllRelated] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [titleExpanded, setTitleExpanded] = useState(false);
+  const [scrubTime, setScrubTime] = useState(null); // Time to preview
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const canvasRef = useRef(null);
+  const previewVideoRef = useRef(null);
 
   // Custom player states & references
   const playerContainerRef = useRef(null);
@@ -361,6 +365,33 @@ export default function Watch() {
     };
   }, []);
 
+  // Update preview when scrubbing
+  useEffect(() => {
+    if (isScrubbing && previewVideoRef.current && canvasRef.current && scrubTime !== null) {
+      const previewVideo = previewVideoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+
+      const handleSeeked = () => {
+        ctx.drawImage(previewVideo, 0, 0, canvas.width, canvas.height);
+        previewVideo.removeEventListener('seeked', handleSeeked);
+      };
+
+      previewVideo.addEventListener('seeked', handleSeeked);
+      previewVideo.currentTime = scrubTime;
+    }
+  }, [scrubTime, isScrubbing]);
+
+  // Set preview video source when main video data changes
+  useEffect(() => {
+    if (previewVideoRef.current && hasStream) {
+      const url = videoData.hls_proxy_url 
+        ? `http://localhost:8000${videoData.hls_proxy_url}` 
+        : `http://localhost:8000${videoData.proxy_url}`;
+      previewVideoRef.current.src = url;
+    }
+  }, [videoData, hasStream]);
+
   // Keyboard Shortcuts (Hotkeys)
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -490,6 +521,8 @@ export default function Watch() {
                 onDoubleClick={handleDoubleClick}
                 className="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-white/[0.08] group select-none cursor-pointer"
               >
+                {/* Hidden Preview Video for Scrubbing */}
+                <video ref={previewVideoRef} className="hidden" muted playsInline preload="metadata" />
                 <video
                   ref={videoRef}
                   className="w-full h-full object-contain"
@@ -552,13 +585,46 @@ export default function Watch() {
                 >
 
                   {/* Timeline (Progress Bar) */}
-                  <div className="w-full mb-3 flex items-center group/timeline">
+                  <div className="w-full mb-3 flex flex-col items-center group/timeline">
+                    {/* Scrubbing Preview */}
+                    {isScrubbing && scrubTime !== null && (
+                      <div className="mb-2 flex flex-col items-center">
+                        <div className="w-40 aspect-video bg-black rounded-lg overflow-hidden border border-white/20">
+                          <canvas ref={canvasRef} width="160" height="90" className="w-full h-full" />
+                        </div>
+                        <span className="text-xs text-white mt-1 bg-black/50 px-2 py-0.5 rounded">
+                          {formatTime(scrubTime)}
+                        </span>
+                      </div>
+                    )}
+
                     <input
                       type="range"
                       min={5}
                       max={duration || 100}
                       value={Math.max(currentTime, 5)}
                       onChange={handleSeek}
+                      onMouseDown={() => setIsScrubbing(true)}
+                      onMouseMove={(e) => {
+                        if (isScrubbing) {
+                          const rect = e.target.getBoundingClientRect();
+                          const pos = (e.clientX - rect.left) / rect.width;
+                          const scrubVal = 5 + pos * (duration - 5);
+                          setScrubTime(scrubVal);
+                        }
+                      }}
+                      onMouseUp={() => setIsScrubbing(false)}
+                      onMouseLeave={() => setIsScrubbing(false)}
+                      onTouchStart={() => setIsScrubbing(true)}
+                      onTouchMove={(e) => {
+                        if (isScrubbing && e.touches[0]) {
+                          const rect = e.target.getBoundingClientRect();
+                          const pos = (e.touches[0].clientX - rect.left) / rect.width;
+                          const scrubVal = 5 + pos * (duration - 5);
+                          setScrubTime(scrubVal);
+                        }
+                      }}
+                      onTouchEnd={() => setIsScrubbing(false)}
                       className="w-full h-1 rounded-full appearance-none cursor-pointer outline-none bg-white/20 accent-[#ff2a5f] transition-all hover:h-1.5 focus:outline-none"
                       style={{
                         background: `linear-gradient(to right, #ff2a5f 0%, #ff2a5f ${
