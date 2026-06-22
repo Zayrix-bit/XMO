@@ -85,9 +85,10 @@ async def fetch_with_fallback(
         try:
             url = f"{protocol}://{domain}{path}"
             logger.info(f"Trying domain: {url}")
-            response = await http_client.get(url, headers=headers)
+            response = await http_client.get(url, headers=headers, follow_redirects=True)
             logger.info(f"Initial response status code: {response.status_code}")
             
+            # Check for anti-bot page
             if response.status_code == 200 and 'REDIRECT_URL' in response.text:
                 logger.info("Found anti-bot page, following redirect...")
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -103,9 +104,10 @@ async def fetch_with_fallback(
                             fp = fp_match.group(1)
                     final_url = redirect_url + f"fp={fp}"
                     logger.info(f"Following redirect to: {final_url}")
-                    response = await http_client.get(final_url, headers=headers)
+                    response = await http_client.get(final_url, headers=headers, follow_redirects=True)
                     logger.info(f"Final response status code: {response.status_code}")
             
+            # Raise for status and check if we have valid content
             response.raise_for_status()
             logger.info(f"Success with domain: {domain}")
             logger.info(f"Final URL (after redirects): {response.url}")
