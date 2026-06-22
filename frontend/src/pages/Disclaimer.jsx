@@ -1,8 +1,12 @@
-import { Link } from 'react-router-dom';
+import { Link, useEffect } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft } from 'lucide-react';
 
 export default function Disclaimer() {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
       <Helmet>

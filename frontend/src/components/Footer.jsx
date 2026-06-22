@@ -148,14 +148,6 @@ export default function Footer() {
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Parental Controls")}
               >Parental Controls</li>
-              <li>
-                <Link
-                  to="/disclaimer"
-                  className="text-xs text-[#ff2a5f] font-medium hover:text-[#ff4a75] transition-colors"
-                >
-                  Disclaimer
-                </Link>
-              </li>
             </ul>
           </div>
 
@@ -182,13 +174,22 @@ export default function Footer() {
         </div>
 
         {/* Bottom copyright segment */}
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-6 pt-10 text-xs text-gray-500">
-          <div className="flex flex-col sm:flex-row items-center gap-4">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-6 pt-10">
+          <div className="flex flex-col sm:flex-row items-center gap-4 text-xs text-gray-500">
             <span>&copy; 2026 NIGHTHUB.com</span>
           </div>
           
-          <div className="text-center max-w-md lg:text-left">
-            18 U.S.C. 2257 Record-Keeping Requirements Compliance Statement
+          <div className="flex flex-col md:flex-row items-center gap-4">
+            <Link
+              to="/disclaimer"
+              onClick={() => window.scrollTo(0, 0)}
+              className="text-sm font-bold text-[#ff2a5f] hover:text-[#ff4a75] transition-colors"
+            >
+              ⚠️ Legal Disclaimer
+            </Link>
+            <div className="text-center max-w-md text-xs text-gray-500">
+              18 U.S.C. 2257 Record-Keeping Requirements Compliance Statement
+            </div>
           </div>
         </div>
       </div>
