@@ -131,9 +131,6 @@ export default function Footer() {
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6 pt-10 text-xs text-gray-500">
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <span>&copy; 2026 NIGHTHUB.com</span>
-            <button className="bg-[#121218] hover:bg-[#181822] text-white border border-white/[0.06] px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5" /> Mobile Version
-            </button>
           </div>
           
           <div className="text-center max-w-md lg:text-left">
