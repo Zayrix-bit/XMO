@@ -1,13 +1,24 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { useState, useEffect } from 'react';
 import Home from './pages/Home';
 import Watch from './pages/Watch';
 import Creator from './pages/Creator';
 import Disclaimer from './pages/Disclaimer';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import AgeVerification from './components/AgeVerification';
 
 function App() {
+  const [isVerified, setIsVerified] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('ageVerified');
+    if (saved === 'true') {
+      setIsVerified(true);
+    }
+  }, []);
+
   return (
     <BrowserRouter>
       <Helmet>
@@ -24,7 +35,8 @@ function App() {
         <meta name="twitter:description" content="Nighthub is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
       </Helmet>
       <div className="min-h-screen bg-[#0f0f13] text-white flex flex-col font-sans">
-        <Navbar />
+        <AgeVerification isVerified={isVerified} setIsVerified={setIsVerified} />
+        {isVerified && <Navbar />}
         <main className="flex-1 max-w-[1600px] mx-auto w-full">
           <Routes>
             <Route path="/" element={<Home />} />
@@ -33,7 +45,7 @@ function App() {
             <Route path="/disclaimer" element={<Disclaimer />} />
           </Routes>
         </main>
-        <Footer />
+        {isVerified && <Footer />}
       </div>
     </BrowserRouter>
   );
