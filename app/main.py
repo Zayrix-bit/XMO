@@ -13,6 +13,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Reduce httpx logging noise (only show warnings/errors)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 app = FastAPI(
     title=settings.app_name,
     description="API for scraping and streaming xHamster content",
