@@ -1,37 +1,22 @@
 import { Flame, Globe, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useCategories } from '../context/CategoriesContext';
 
 export default function Footer() {
-  const [categories, setCategories] = useState([]);
-  const [groupedCategories, setGroupedCategories] = useState({});
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await axios.get('http://localhost:8000/api/categories');
-        const cats = res.data.categories || [];
-        const countries = res.data.countries || [];
-        const combined = [...cats, ...countries];
-        setCategories(combined);
-        
-        // Group categories by first letter
-        const grouped = {};
-        combined.forEach(cat => {
-          const firstLetter = cat.name.charAt(0).toUpperCase();
-          if (!grouped[firstLetter]) {
-            grouped[firstLetter] = [];
-          }
-          grouped[firstLetter].push(cat);
-        });
-        setGroupedCategories(grouped);
-      } catch (err) {
-        console.error("Error fetching categories for footer:", err);
+  const { categories, loading } = useCategories();
+  
+  const groupedCategories = useMemo(() => {
+    const grouped = {};
+    categories.forEach(cat => {
+      const firstLetter = cat.name.charAt(0).toUpperCase();
+      if (!grouped[firstLetter]) {
+        grouped[firstLetter] = [];
       }
-    };
-    fetchCategories();
-  }, []);
+      grouped[firstLetter].push(cat);
+    });
+    return grouped;
+  }, [categories]);
 
   // Get sorted letters
   const sortedLetters = Object.keys(groupedCategories).sort();

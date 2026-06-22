@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import axios from 'axios';
+import api from '../services/api';
 import { ArrowLeft, Heart, Clock, Play, Eye, User } from 'lucide-react';
 
 export default function Creator() {
@@ -19,7 +19,7 @@ export default function Creator() {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get(`http://localhost:8000/api/creator/${slug}?page=${page}`);
+        const response = await api.get(`/api/creator/${slug}?page=${page}`);
         if (response.data.status === 'success') {
           setCreatorData(response.data.creator);
           if (page === 1) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import axios from 'axios';
+import api from '../services/api';
 import Hls from 'hls.js';
 import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, ChevronUp, Pause, Volume2, VolumeX, Maximize, Minimize, Loader2, ChevronLeft, ChevronRight, RotateCcw, RotateCw, Eye, User } from 'lucide-react';
 
@@ -85,7 +85,7 @@ export default function Watch() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       try {
         const targetUrl = originalUrl || `https://xhamster.com/videos/video-${id}`;
-        const response = await axios.get(`http://localhost:8000/api/video?url=${encodeURIComponent(targetUrl)}`);
+        const response = await api.get(`/api/video?url=${encodeURIComponent(targetUrl)}`);
         
         if (response.data.status === 'success') {
           setVideoData(response.data);
@@ -113,7 +113,7 @@ export default function Watch() {
         const urlParts = videoData.uploader.profile_url.split('/');
         const slug = urlParts[urlParts.length - 1];
         
-        const response = await axios.get(`http://localhost:8000/api/creator/${slug}`);
+        const response = await api.get(`/api/creator/${slug}`);
         if (response.data.status === 'success') {
           setCreatorData(response.data.creator);
           setCreatorVideos(response.data.videos);
@@ -133,8 +133,8 @@ export default function Watch() {
     if (!videoData || !videoRef.current) return;
 
     const video = videoRef.current;
-    const hlsUrl = videoData.hls_proxy_url ? `http://localhost:8000${videoData.hls_proxy_url}` : null;
-    const mp4Url = videoData.proxy_url ? `http://localhost:8000${videoData.proxy_url}` : null;
+    const hlsUrl = videoData.hls_proxy_url ? `${import.meta.env.VITE_API_BASE_URL}${videoData.hls_proxy_url}` : null;
+    const mp4Url = videoData.proxy_url ? `${import.meta.env.VITE_API_BASE_URL}${videoData.proxy_url}` : null;
 
     // Function to handle video end
     const handleVideoEnd = () => {
@@ -165,7 +165,20 @@ export default function Watch() {
           label: `${level.height}p`,
         }));
         setQualities(levels);
-        setCurrentQuality(-1); // auto
+        
+        // Find default quality (720p, fallback to 480p, then auto)
+        let defaultQuality = levels.find(l => l.height === 720);
+        if (!defaultQuality) {
+          defaultQuality = levels.find(l => l.height === 480);
+        }
+        
+        if (defaultQuality) {
+          setCurrentQuality(defaultQuality.index);
+          hls.currentLevel = defaultQuality.index;
+        } else {
+          setCurrentQuality(-1); // auto if preferred qualities not available
+        }
+        
         video.play().catch(() => {});
       });
 

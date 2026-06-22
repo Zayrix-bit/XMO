@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import axios from 'axios';
+import api from '../services/api';
+import { useCategories } from '../context/CategoriesContext';
 import { Play, Clock, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 
 function SkeletonCard() {
@@ -20,30 +21,17 @@ export default function Home() {
   const tab = searchParams.get('tab') || (query ? 'search' : 'trending');
   const page = parseInt(searchParams.get('page') || '1');
   
-  // Debug log
-  console.log("Home page debug - query:", query, "tab:", tab, "search params:", Object.fromEntries(searchParams.entries()));
+
   
   const [videos, setVideos] = useState([]);
-  const [allCategoriesData, setAllCategoriesData] = useState([]);
-  const [normalCategories, setNormalCategories] = useState([]);
-  const [countries, setCountries] = useState([]);
-  const [allCategories, setAllCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Fetch all categories once
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await axios.get('http://localhost:8000/api/categories');
-        setNormalCategories(res.data.categories || []);
-        setCountries(res.data.countries || []);
-        setAllCategories([...(res.data.categories || []), ...(res.data.countries || [])]);
-      } catch (err) {
-        console.error("Error fetching categories:", err);
-      }
-    };
-    fetchCategories();
-  }, []);
+  
+  // Use shared categories context
+  const { 
+    categories: allCategories, 
+    normalCategories, 
+    countries 
+  } = useCategories();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -69,7 +57,7 @@ export default function Home() {
           endpoint = `/api/trending?page=${page}`; // default
         }
 
-        const response = await axios.get(`http://localhost:8000${endpoint}`);
+        const response = await api.get(endpoint);
         if (response.data.status === 'success') {
           setVideos(response.data.results);
         }
@@ -80,7 +68,7 @@ export default function Home() {
     };
     
     fetchData();
-  }, [query, tab, page, searchParams, allCategories]);
+  }, [query, tab, page, searchParams]);
 
   const handlePageChange = (newPage) => {
     if (newPage < 1) return;
