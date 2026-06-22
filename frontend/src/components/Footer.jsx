@@ -1,11 +1,10 @@
-import { Flame, Search } from 'lucide-react';
+import { Flame } from 'lucide-react';
 import { useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useCategories } from '../context/CategoriesContext';
 
 export default function Footer() {
   const { categories, loading } = useCategories();
-  const navigate = useNavigate();
   
   const handleLinkClick = (e, linkText) => {
     e.preventDefault();
