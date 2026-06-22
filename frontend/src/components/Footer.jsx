@@ -1,6 +1,6 @@
-import { Flame, Globe, Search } from 'lucide-react';
+import { Flame, Search } from 'lucide-react';
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCategories } from '../context/CategoriesContext';
 
 export default function Footer() {
@@ -108,7 +108,7 @@ export default function Footer() {
           </div>
 
           {/* Column 4: Make Money */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div>
               <h4 className="text-sm font-semibold text-white mb-4">Start making money</h4>
               <ul className="space-y-2 text-sm text-gray-500">
@@ -116,13 +116,6 @@ export default function Footer() {
                 <li className="hover:text-white cursor-pointer transition-colors">Creator Contest</li>
                 <li className="hover:text-white cursor-pointer transition-colors">Content Creators Program</li>
               </ul>
-            </div>
-            
-            <div className="space-y-3 pt-2">
-              <h5 className="text-xs font-semibold text-white">Monetize content</h5>
-              <button className="bg-[#ff2a5f] hover:bg-[#ff4a75] text-white font-semibold text-xs px-4 py-2.5 rounded-lg transition-all">
-                Become a creator
-              </button>
             </div>
           </div>
         </div>
