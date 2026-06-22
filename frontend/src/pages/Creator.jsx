@@ -81,22 +81,22 @@ export default function Creator() {
   return (
     <>
       <Helmet>
-        <title>{creatorData ? `${creatorData.name || slug} | Watch Free Videos - Nighthub` : 'Creator - Nighthub'}</title>
-        <meta name="description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Nighthub. Free streaming with no interruptions.` : 'Browse creators on Nighthub.'} />
+        <title>{creatorData ? `${creatorData.name || slug} | Watch Free Videos - Hotster` : 'Creator - Hotster'}</title>
+        <meta name="description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Hotster. Free streaming with no interruptions.` : 'Browse creators on Hotster.'} />
         <meta name="keywords" content={creatorData ? `${creatorData.name || slug}, free videos, creator, HD streaming` : 'creators, free videos, watch online'} />
         <meta name="robots" content="index, follow" />
         <link rel="canonical" href={window.location.href} />
-        <meta property="og:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - Nighthub` : 'Creator - Nighthub'} />
-        <meta property="og:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Nighthub. Free streaming with no interruptions.` : 'Browse creators on Nighthub.'} />
+        <meta property="og:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - Hotster` : 'Creator - Hotster'} />
+        <meta property="og:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Hotster. Free streaming with no interruptions.` : 'Browse creators on Hotster.'} />
         <meta property="og:type" content="profile" />
         <meta property="og:url" content={window.location.href} />
-        <meta property="og:site_name" content="Nighthub" />
+        <meta property="og:site_name" content="Hotster" />
         {creatorData?.avatar && (
           <meta property="og:image" content={creatorData.avatar} />
         )}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - Nighthub` : 'Creator - Nighthub'} />
-        <meta name="twitter:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Nighthub. Free streaming with no interruptions.` : 'Browse creators on Nighthub.'} />
+        <meta name="twitter:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - Hotster` : 'Creator - Hotster'} />
+        <meta name="twitter:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Hotster. Free streaming with no interruptions.` : 'Browse creators on Hotster.'} />
         {creatorData?.avatar && (
           <meta name="twitter:image" content={creatorData.avatar} />
         )}

@@ -22,17 +22,18 @@ function App() {
   return (
     <BrowserRouter>
       <Helmet>
-        <title>Nighthub - Video Streaming Platform</title>
-        <meta name="description" content="Nighthub is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
+        <title>Hotster - Video Streaming Platform</title>
+        <meta name="description" content="Hotster is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
+        <meta name="keywords" content="video, streaming, hotster, movies, shows" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta charSet="UTF-8" />
         <meta property="og:type" content="website" />
-        <meta property="og:title" content="Nighthub - Video Streaming Platform" />
-        <meta property="og:description" content="Nighthub is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
-        <meta property="og:site_name" content="Nighthub" />
+        <meta property="og:title" content="Hotster - Video Streaming Platform" />
+        <meta property="og:description" content="Hotster is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
+        <meta property="og:site_name" content="Hotster" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Nighthub - Video Streaming Platform" />
-        <meta name="twitter:description" content="Nighthub is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
+        <meta name="twitter:title" content="Hotster - Video Streaming Platform" />
+        <meta name="twitter:description" content="Hotster is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
       </Helmet>
       <div className="min-h-screen bg-[#0f0f13] text-white flex flex-col font-sans">
         <AgeVerification isVerified={isVerified} setIsVerified={setIsVerified} />

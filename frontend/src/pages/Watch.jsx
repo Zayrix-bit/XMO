@@ -498,22 +498,22 @@ export default function Watch() {
   return (
     <>
       <Helmet>
-        <title>{videoData ? `${videoData.title} | Watch Free HD Video - Nighthub` : 'Watch Video - Nighthub'}</title>
-        <meta name="description" content={videoData ? `Watch ${videoData.title} in HD quality on Nighthub. Free streaming with no interruptions.` : 'Watch free HD videos on Nighthub.'} />
+        <title>{videoData ? `${videoData.title} | Watch Free HD Video - Hotster` : 'Watch Video - Hotster'}</title>
+        <meta name="description" content={videoData ? `Watch ${videoData.title} in HD quality on Hotster. Free streaming with no interruptions.` : 'Watch free HD videos on Hotster.'} />
         <meta name="keywords" content={videoData ? `${videoData.title.split(' ').join(', ')}, free video, HD streaming, online video` : 'free videos, HD streaming, watch online'} />
         <meta name="robots" content="index, follow" />
         <link rel="canonical" href={window.location.href} />
-        <meta property="og:title" content={videoData ? `${videoData.title} | Watch Free HD Video - Nighthub` : 'Watch Video - Nighthub'} />
-        <meta property="og:description" content={videoData ? `Watch ${videoData.title} in HD quality on Nighthub. Free streaming with no interruptions.` : 'Watch free HD videos on Nighthub.'} />
+        <meta property="og:title" content={videoData ? `${videoData.title} | Watch Free HD Video - Hotster` : 'Watch Video - Hotster'} />
+        <meta property="og:description" content={videoData ? `Watch ${videoData.title} in HD quality on Hotster. Free streaming with no interruptions.` : 'Watch free HD videos on Hotster.'} />
         <meta property="og:type" content="video.movie" />
         <meta property="og:url" content={window.location.href} />
-        <meta property="og:site_name" content="Nighthub" />
+        <meta property="og:site_name" content="Hotster" />
         {videoData?.related?.[0]?.image && (
           <meta property="og:image" content={videoData.related[0].image} />
         )}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={videoData ? `${videoData.title} | Watch Free HD Video - Nighthub` : 'Watch Video - Nighthub'} />
-        <meta name="twitter:description" content={videoData ? `Watch ${videoData.title} in HD quality on Nighthub. Free streaming with no interruptions.` : 'Watch free HD videos on Nighthub.'} />
+        <meta name="twitter:title" content={videoData ? `${videoData.title} | Watch Free HD Video - Hotster` : 'Watch Video - Hotster'} />
+        <meta name="twitter:description" content={videoData ? `Watch ${videoData.title} in HD quality on Hotster. Free streaming with no interruptions.` : 'Watch free HD videos on Hotster.'} />
         {videoData?.related?.[0]?.image && (
           <meta name="twitter:image" content={videoData.related[0].image} />
         )}
@@ -526,7 +526,7 @@ export default function Watch() {
             "@context": "https://schema.org",
             "@type": "VideoObject",
             "name": videoData.title,
-            "description": `Watch ${videoData.title} in HD quality on Nighthub.`,
+            "description": `Watch ${videoData.title} in HD quality on Hotster.`,
             "thumbnailUrl": videoData.related?.[0]?.image || "",
             "embedUrl": window.location.href,
             "uploadDate": new Date().toISOString(),

@@ -11,8 +11,8 @@ export default function Disclaimer() {
   return (
     <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
       <Helmet>
-        <title>Disclaimer - Nighthub</title>
-        <meta name="description" content="Legal disclaimer for Nighthub video platform." />
+        <title>Disclaimer - Hotster</title>
+        <meta name="description" content="Legal disclaimer for Hotster video platform." />
         <meta name="robots" content="noindex, nofollow" />
       </Helmet>
 

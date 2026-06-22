@@ -77,9 +77,9 @@ export default function Footer() {
               <div className="w-8 h-8 rounded-lg bg-[#ff2a5f] flex items-center justify-center">
                 <Flame className="w-4 h-4 text-white" />
               </div>
-              <span className="text-lg font-bold tracking-tight">
-                NIGHT<span className="text-[#ff2a5f]">HUB</span>
-              </span>
+              <span className="text-xl font-bold tracking-tight">
+            HOT<span className="text-[#ff2a5f]">STER</span>
+          </span>
             </div>
             <ul className="space-y-2 text-sm text-gray-500">
               <li 
@@ -176,7 +176,7 @@ export default function Footer() {
         {/* Bottom copyright segment */}
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6 pt-10">
           <div className="flex flex-col sm:flex-row items-center gap-4 text-xs text-gray-500">
-            <span>&copy; 2026 NIGHTHUB.com</span>
+            <span>&copy; 2026 HOTSTER.com</span>
           </div>
           
           <div className="flex flex-col md:flex-row items-center gap-4">

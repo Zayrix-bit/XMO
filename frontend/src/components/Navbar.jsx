@@ -51,7 +51,7 @@ export default function Navbar() {
             <Flame className="w-5 h-5 text-white" />
           </div>
           <span className="text-xl font-black tracking-tight hidden sm:inline">
-            NIGHT<span className="text-[#ff2a5f]">HUB</span>
+            HOT<span className="text-[#ff2a5f]">STER</span>
           </span>
         </button>
 

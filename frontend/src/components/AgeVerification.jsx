@@ -46,7 +46,7 @@ export default function AgeVerification({ isVerified, setIsVerified }) {
           {/* Heading Section */}
           <div className="space-y-1 sm:space-y-2">
             <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white">
-              Nighthub is <span className="text-[#ff2a5f]">adults only</span>!
+              Hotster is <span className="text-[#ff2a5f]">adults only</span>!
             </h1>
             <p className="text-sm sm:text-base md:text-lg text-gray-300">
               This site contains adult content.
@@ -56,13 +56,13 @@ export default function AgeVerification({ isVerified, setIsVerified }) {
           {/* Information Text */}
           <div className="text-left text-gray-300 text-xs sm:text-sm md:text-base space-y-2 sm:space-y-3 md:space-y-4">
             <p>
-              The content available on Nighthub may contain pornographic materials.
+              The content available on Hotster may contain pornographic materials.
             </p>
             <p>
-              Nighthub is strictly limited to those over 18 or of legal age in your jurisdiction, whichever is greater.
+              Hotster is strictly limited to those over 18 or of legal age in your jurisdiction, whichever is greater.
             </p>
             <p>
-              One of our core goals is to help parents restrict access to Nighthub for minors, so we have ensured that Nighthub is, and remains, fully compliant with the RTA (Restricted to Adults) code. This means that all access to the site can be blocked by simple parental control tools. It is important that responsible parents and guardians take the necessary steps to prevent minors from accessing unsuitable content online, especially age-restricted content.
+              One of our core goals is to help parents restrict access to Hotster for minors, so we have ensured that Hotster is, and remains, fully compliant with the RTA (Restricted to Adults) code. This means that all access to the site can be blocked by simple parental control tools. It is important that responsible parents and guardians take the necessary steps to prevent minors from accessing unsuitable content online, especially age-restricted content.
             </p>
             <p>
               Anyone with a minor in their household or under their supervision should implement basic parental control protections, including computer hardware and device settings, software installation, or ISP filtering services, to block your minors from accessing inappropriate content.
@@ -78,7 +78,7 @@ export default function AgeVerification({ isVerified, setIsVerified }) {
               onClick={handleVerify}
               className="w-full py-2 sm:py-3 bg-[#ff2a5f] hover:bg-[#ff4a75] text-white text-sm sm:text-base md:text-lg font-bold rounded-lg sm:rounded-xl transition-all active:scale-98"
             >
-              Yes, I'm 18 or older — Enter Nighthub
+              Yes, I'm 18 or older — Enter Hotster
             </button>
           </div>
 
