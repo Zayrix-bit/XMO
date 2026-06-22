@@ -5,6 +5,12 @@ import { useCategories } from '../context/CategoriesContext';
 
 export default function Footer() {
   const { categories, loading } = useCategories();
+  const navigate = useNavigate();
+  
+  const handleLinkClick = (e, linkText) => {
+    e.preventDefault();
+    alert(`${linkText} is coming soon!`);
+  };
   
   const groupedCategories = useMemo(() => {
     const grouped = {};
@@ -77,10 +83,22 @@ export default function Footer() {
               </span>
             </div>
             <ul className="space-y-2 text-sm text-gray-500">
-              <li className="hover:text-white cursor-pointer transition-colors">Press</li>
-              <li className="hover:text-white cursor-pointer transition-colors">Blog</li>
-              <li className="hover:text-white cursor-pointer transition-colors">Creator's Blog</li>
-              <li className="hover:text-white cursor-pointer transition-colors">Advertising</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Press")}
+              >Press</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Blog")}
+              >Blog</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Creator's Blog")}
+              >Creator's Blog</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Advertising")}
+              >Advertising</li>
             </ul>
           </div>
 
@@ -88,10 +106,22 @@ export default function Footer() {
           <div className="space-y-4">
             <h4 className="text-sm font-semibold text-white">Help</h4>
             <ul className="space-y-2 text-sm text-gray-500">
-              <li className="hover:text-white cursor-pointer transition-colors">FAQ</li>
-              <li className="hover:text-white cursor-pointer transition-colors">Contact us</li>
-              <li className="hover:text-white cursor-pointer transition-colors">Content Removal</li>
-              <li className="hover:text-white cursor-pointer transition-colors">Improve NightHub</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "FAQ")}
+              >FAQ</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Contact us")}
+              >Contact us</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Content Removal")}
+              >Content Removal</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Improve NightHub")}
+              >Improve NightHub</li>
             </ul>
           </div>
 
@@ -99,11 +129,26 @@ export default function Footer() {
           <div className="space-y-4">
             <h4 className="text-sm font-semibold text-white">Legal</h4>
             <ul className="space-y-2 text-sm text-gray-500">
-              <li className="hover:text-white cursor-pointer transition-colors">Terms of use</li>
-              <li className="hover:text-white cursor-pointer transition-colors">Privacy policy</li>
-              <li className="hover:text-white cursor-pointer transition-colors">Cookies policy</li>
-              <li className="hover:text-white cursor-pointer transition-colors">DMCA/Copyright</li>
-              <li className="hover:text-white cursor-pointer transition-colors">Parental Controls</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Terms of use")}
+              >Terms of use</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Privacy policy")}
+              >Privacy policy</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Cookies policy")}
+              >Cookies policy</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "DMCA/Copyright")}
+              >DMCA/Copyright</li>
+              <li 
+                className="hover:text-white cursor-pointer transition-colors"
+                onClick={(e) => handleLinkClick(e, "Parental Controls")}
+              >Parental Controls</li>
             </ul>
           </div>
 
@@ -112,9 +157,18 @@ export default function Footer() {
             <div>
               <h4 className="text-sm font-semibold text-white mb-4">Start making money</h4>
               <ul className="space-y-2 text-sm text-gray-500">
-                <li className="hover:text-white cursor-pointer transition-colors">Camgirls Wanted</li>
-                <li className="hover:text-white cursor-pointer transition-colors">Creator Contest</li>
-                <li className="hover:text-white cursor-pointer transition-colors">Content Creators Program</li>
+                <li 
+                  className="hover:text-white cursor-pointer transition-colors"
+                  onClick={(e) => handleLinkClick(e, "Camgirls Wanted")}
+                >Camgirls Wanted</li>
+                <li 
+                  className="hover:text-white cursor-pointer transition-colors"
+                  onClick={(e) => handleLinkClick(e, "Creator Contest")}
+                >Creator Contest</li>
+                <li 
+                  className="hover:text-white cursor-pointer transition-colors"
+                  onClick={(e) => handleLinkClick(e, "Content Creators Program")}
+                >Content Creators Program</li>
               </ul>
             </div>
           </div>
