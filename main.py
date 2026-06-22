@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-import requests
+import httpx
 from bs4 import BeautifulSoup
 import re
 import uvicorn
@@ -9,6 +9,11 @@ import json
 import diskcache
 import functools
 from fastapi import Request
+import asyncio
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 def extract_page_data(html):
     """Extract page data from HTML by finding the largest JSON object in script tags"""
     soup = BeautifulSoup(html, 'html.parser')
@@ -77,6 +82,25 @@ def format_views(views):
 
 app = FastAPI()
 
+# Global async HTTP client with connection pooling
+http_client = None
+
+@app.on_event("startup")
+async def startup_event():
+    global http_client
+    http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(15.0),
+        follow_redirects=True,
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
+    )
+    logger.info("HTTP client initialized")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    if http_client:
+        await http_client.aclose()
+        logger.info("HTTP client closed")
+
 # Initialize persistent disk cache
 cache = diskcache.Cache('.cache')
 
@@ -84,7 +108,7 @@ def cache_response(ttl_seconds: int):
     """Decorator to cache FastAPI endpoint responses using diskcache."""
     def decorator(func):
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             key_parts = [func.__name__]
             for k, v in kwargs.items():
                 if isinstance(v, Request):
@@ -96,7 +120,10 @@ def cache_response(ttl_seconds: int):
             if cached_value is not None:
                 return cached_value
                 
-            result = func(*args, **kwargs)
+            if asyncio.iscoroutinefunction(func):
+                result = await func(*args, **kwargs)
+            else:
+                result = func(*args, **kwargs)
             
             if isinstance(result, dict) and result.get("status") == "success":
                 cache.set(cache_key, result, expire=ttl_seconds)
@@ -152,25 +179,24 @@ HEADERS = {
 }
 
 
-def fetch_with_fallback(path: str, use_https: bool = True):
+async def fetch_with_fallback(path: str, use_https: bool = True):
     """
     Try fetching from all xHamster domains until one works.
     :param path: Path part of URL (e.g., "/newest/2", "/search/video?q=milf")
     :param use_https: Whether to use https
-    :return: (response, working_domain)
+    :return: (response_text, working_domain)
     """
     protocol = 'https' if use_https else 'http'
     for domain in XHAMSTER_DOMAINS:
         try:
-            session = requests.Session()
             url = f"{protocol}://{domain}{path}"
-            print(f"[DEBUG] Trying domain: {url}")
-            response = session.get(url, headers=HEADERS, timeout=15, allow_redirects=True)
-            print(f"[DEBUG] Initial response status code: {response.status_code}")
+            logger.info(f"Trying domain: {url}")
+            response = await http_client.get(url, headers=HEADERS)
+            logger.info(f"Initial response status code: {response.status_code}")
             
             # Check if this is the anti-bot redirect page
             if response.status_code == 200 and 'REDIRECT_URL' in response.text:
-                print("[DEBUG] Found anti-bot page, following redirect...")
+                logger.info("Found anti-bot page, following redirect...")
                 soup = BeautifulSoup(response.text, 'html.parser')
                 # Find the redirect URL from the script tag
                 import re
@@ -187,17 +213,17 @@ def fetch_with_fallback(path: str, use_https: bool = True):
                             fp = fp_match.group(1)
                     # Build the final URL
                     final_url = redirect_url + f"fp={fp}"
-                    print(f"[DEBUG] Following redirect to: {final_url}")
-                    # Now fetch the actual page with the same session
-                    response = session.get(final_url, headers=HEADERS, timeout=15, allow_redirects=True)
-                    print(f"[DEBUG] Final response status code: {response.status_code}")
+                    logger.info(f"Following redirect to: {final_url}")
+                    # Now fetch the actual page
+                    response = await http_client.get(final_url, headers=HEADERS)
+                    logger.info(f"Final response status code: {response.status_code}")
             
             response.raise_for_status()
-            print(f"[DEBUG] Success with domain: {domain}")
-            print(f"[DEBUG] Final URL (after redirects): {response.url}")
-            return response, domain
+            logger.info(f"Success with domain: {domain}")
+            logger.info(f"Final URL (after redirects): {response.url}")
+            return response.text, domain
         except Exception as e:
-            print(f"[DEBUG] Failed with domain {domain}: {str(e)}")
+            logger.error(f"Failed with domain {domain}: {str(e)}")
             continue
     return None, None
 
@@ -213,24 +239,24 @@ def clear_cache():
 
 @app.get("/api/creator/{creator_slug}")
 @cache_response(ttl_seconds=3600)
-def get_creator_videos(creator_slug: str, page: int = 1):
+async def get_creator_videos(creator_slug: str, page: int = 1):
     """Fetch creator's profile and videos."""
     # First, try with /creators/ path
     path = f"/creators/{creator_slug}"
     if page > 1:
         path += f"/{page}"
-    response, domain = fetch_with_fallback(path)
-    if not response:
+    response_text, domain = await fetch_with_fallback(path)
+    if not response_text:
         # Try /users/ path as fallback
         path = f"/users/{creator_slug}"
         if page > 1:
             path += f"/{page}"
-        response, domain = fetch_with_fallback(path)
+        response_text, domain = await fetch_with_fallback(path)
     
-    if not response:
+    if not response_text:
         return {"status": "error", "message": "Could not fetch creator profile"}
     
-    page_data = extract_page_data(response.text)
+    page_data = extract_page_data(response_text)
     creator = None
     videos = []
     if page_data:
@@ -353,20 +379,20 @@ def parse_video_list(html_or_soup):
     return videos
 
 @app.get("/api/search")
-# @cache_response(ttl_seconds=3600)  # Temporarily disabled for debugging
-def search_videos(q: str = Query(..., description="Search query"), page: int = Query(1, description="Page number")):
+@cache_response(ttl_seconds=3600)  # Re-enabled
+async def search_videos(q: str = Query(..., description="Search query"), page: int = Query(1, description="Page number")):
     # Encode spaces in query
     query_encoded = q.replace(" ", "+")
     path = f"/search/{query_encoded}"
     if page > 1:
         path += f"?page={page}"
-    response, domain = fetch_with_fallback(path)
+    response_text, domain = await fetch_with_fallback(path)
     
-    if not response:
+    if not response_text:
         return {"status": "error", "message": "No working xHamster domain found!"}
         
     try:
-        videos = parse_video_list(response.text)
+        videos = parse_video_list(response_text)
                 
         return {
             "status": "success",
@@ -381,50 +407,50 @@ def search_videos(q: str = Query(..., description="Search query"), page: int = Q
 
 @app.get("/api/trending")
 @cache_response(ttl_seconds=10)  # 10-second cache to prevent multi-fetch flickering
-def trending_videos(page: int = Query(1, description="Page number")):
+async def trending_videos(page: int = Query(1, description="Page number")):
     # Fetch the dynamic live feed for page 1, and fall back to monthly best for pagination
     if page == 1:
         path = "/"
     else:
         path = f"/best/monthly/{page}"
         
-    response, domain = fetch_with_fallback(path)
+    response_text, domain = await fetch_with_fallback(path)
     
-    if not response:
+    if not response_text:
         return {"status": "error", "message": "No working xHamster domain found!"}
     
     try:
-        videos = parse_video_list(response.text)
+        videos = parse_video_list(response_text)
         return {"status": "success", "page": page, "results": videos, "used_domain": domain}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/newest")
 @cache_response(ttl_seconds=10)  # 10-second cache to prevent multi-fetch flickering
-def newest_videos(page: int = Query(1, description="Page number")):
+async def newest_videos(page: int = Query(1, description="Page number")):
     path = f"/newest/{page}"
-    response, domain = fetch_with_fallback(path)
+    response_text, domain = await fetch_with_fallback(path)
     
-    if not response:
+    if not response_text:
         return {"status": "error", "message": "No working xHamster domain found!"}
     
     try:
-        videos = parse_video_list(response.text)
+        videos = parse_video_list(response_text)
         return {"status": "success", "page": page, "results": videos, "used_domain": domain}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/categories")
 @cache_response(ttl_seconds=86400)  # 24 hours
-def get_categories():
+async def get_categories():
     path = "/categories"
-    response, domain = fetch_with_fallback(path)
+    response_text, domain = await fetch_with_fallback(path)
     
-    if not response:
+    if not response_text:
         return {"status": "error", "message": "No working xHamster domain found!"}
     
     try:
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(response_text, 'html.parser')
         
         cats = []
         langs = []
@@ -510,24 +536,24 @@ def get_categories():
 
 @app.get("/api/category/{slug}")
 @cache_response(ttl_seconds=3600)  # 1 hour
-def category_videos(slug: str, page: int = Query(1, description="Page number")):
+async def category_videos(slug: str, page: int = Query(1, description="Page number")):
     path = f"/categories/{slug}/{page}"
-    response, domain = fetch_with_fallback(path)
+    response_text, domain = await fetch_with_fallback(path)
     
-    if not response:
+    if not response_text:
         return {"status": "error", "message": "No working xHamster domain found!"}
     
     try:
-        videos = parse_video_list(response.text)
+        videos = parse_video_list(response_text)
         return {"status": "success", "category": slug, "page": page, "results": videos, "used_domain": domain}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/video")
 @cache_response(ttl_seconds=600)  # 10 mins
-def get_video_stream(url: str = Query(..., description="Full xHamster video URL")):
+async def get_video_stream(url: str = Query(..., description="Full xHamster video URL")):
     try:
-        response = requests.get(url, headers=HEADERS)
+        response = await http_client.get(url, headers=HEADERS)
         response.raise_for_status()
         
         html = response.text
@@ -595,12 +621,14 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         
         proxy_url = None
         if direct_url:
-            proxy_url = f"/api/proxy?url={requests.utils.quote(direct_url, safe='')}"
+            from urllib.parse import quote
+            proxy_url = f"/api/proxy?url={quote(direct_url, safe='')}"
         
         # HLS proxy URL for multi-quality streaming
         hls_proxy_url = None
         if m3u8_links:
-            hls_proxy_url = f"/api/hls-proxy?url={requests.utils.quote(m3u8_links[0], safe='')}"
+            from urllib.parse import quote
+            hls_proxy_url = f"/api/hls-proxy?url={quote(m3u8_links[0], safe='')}"
         
         # Extract referer/origin domain from original url
         from urllib.parse import urlparse
@@ -628,7 +656,7 @@ def get_video_stream(url: str = Query(..., description="Full xHamster video URL"
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/proxy")
-def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"), request: Request = None):
+async def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"), request: Request = None):
     """Proxy the video stream with correct Referer header to bypass CDN 403 blocks."""
     try:
         # Find the appropriate xHamster domain for referer
@@ -649,32 +677,36 @@ def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"
         if request and 'range' in request.headers:
             proxy_headers['Range'] = request.headers['range']
         
-        r = requests.get(url, headers=proxy_headers, stream=True)
-        r.raise_for_status()
-        
-        # Build response headers
-        response_headers = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': '*',
-        }
-        
-        # Copy important headers
-        for header in ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'Cache-Control']:
-            if header in r.headers:
-                response_headers[header] = r.headers[header]
-        
-        return StreamingResponse(
-            r.iter_content(chunk_size=1024 * 256),
-            status_code=r.status_code,
-            media_type=response_headers.get('Content-Type', 'video/mp4'),
-            headers=response_headers
-        )
+        async with http_client.stream('GET', url, headers=proxy_headers) as r:
+            r.raise_for_status()
+            
+            # Build response headers
+            response_headers = {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': '*',
+            }
+            
+            # Copy important headers
+            for header in ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'Cache-Control']:
+                if header in r.headers:
+                    response_headers[header] = r.headers[header]
+            
+            async def stream_generator():
+                async for chunk in r.aiter_bytes(chunk_size=1024 * 256):
+                    yield chunk
+            
+            return StreamingResponse(
+                stream_generator(),
+                status_code=r.status_code,
+                media_type=response_headers.get('Content-Type', 'video/mp4'),
+                headers=response_headers
+            )
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/hls-proxy")
-def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewriting"), request: Request = None):
+async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewriting"), request: Request = None):
     """Proxy M3U8 playlists and rewrite internal URLs to also go through our proxy."""
     try:
         # Find the appropriate xHamster domain for referer
@@ -690,16 +722,17 @@ def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewr
             'Origin': f'https://{referer_domain}',
         }
         
-        r = requests.get(url, headers=proxy_headers)
-        r.raise_for_status()
+        response = await http_client.get(url, headers=proxy_headers)
+        response.raise_for_status()
         
-        content = r.text
-        content_type = r.headers.get('Content-Type', 'application/vnd.apple.mpegurl')
+        content = response.text
+        content_type = response.headers.get('Content-Type', 'application/vnd.apple.mpegurl')
         
         # Check if this is an M3U8 playlist
         if '.m3u8' in url or 'mpegurl' in content_type.lower() or content.strip().startswith('#EXTM3U'):
             # Get the base URL for resolving relative paths
             base_url = url.rsplit('/', 1)[0] + '/'
+            from urllib.parse import quote
             
             rewritten_lines = []
             for line in content.splitlines():
@@ -707,14 +740,19 @@ def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewr
                 if not line or line.startswith('#'):
                     # For EXT-X-MAP or similar tags that contain URIs
                     if 'URI="' in line:
-                        import urllib.parse
                         uri_match = re.search(r'URI="([^"]+)"', line)
                         if uri_match:
                             orig_uri = uri_match.group(1)
                             if not orig_uri.startswith('http'):
                                 orig_uri = base_url + orig_uri
-                            proxied = f"/api/hls-proxy?url={requests.utils.quote(orig_uri, safe='')}"
-                            line = line.replace(uri_match.group(0), f'URI="http://localhost:8000{proxied}"')
+                            proxied = f"/api/hls-proxy?url={quote(orig_uri, safe='')}"
+                            # Use the request's host instead of hardcoded localhost:8000
+                            if request:
+                                scheme = request.url.scheme
+                                host = request.headers.get('host', 'localhost:8000')
+                                line = line.replace(uri_match.group(0), f'URI="{scheme}://{host}{proxied}"')
+                            else:
+                                line = line.replace(uri_match.group(0), f'URI="http://localhost:8000{proxied}"')
                     rewritten_lines.append(line)
                 else:
                     # This is a URL line (segment or sub-playlist)
@@ -724,9 +762,19 @@ def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewr
                     
                     # Sub-playlists (.m3u8) go through hls-proxy, segments through regular proxy
                     if '.m3u8' in segment_url:
-                        proxied = f"http://localhost:8000/api/hls-proxy?url={requests.utils.quote(segment_url, safe='')}"
+                        if request:
+                            scheme = request.url.scheme
+                            host = request.headers.get('host', 'localhost:8000')
+                            proxied = f"{scheme}://{host}/api/hls-proxy?url={quote(segment_url, safe='')}"
+                        else:
+                            proxied = f"http://localhost:8000/api/hls-proxy?url={quote(segment_url, safe='')}"
                     else:
-                        proxied = f"http://localhost:8000/api/proxy?url={requests.utils.quote(segment_url, safe='')}"
+                        if request:
+                            scheme = request.url.scheme
+                            host = request.headers.get('host', 'localhost:8000')
+                            proxied = f"{scheme}://{host}/api/proxy?url={quote(segment_url, safe='')}"
+                        else:
+                            proxied = f"http://localhost:8000/api/proxy?url={quote(segment_url, safe='')}"
                     rewritten_lines.append(proxied)
             
             from fastapi.responses import Response
@@ -741,20 +789,26 @@ def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewr
             )
         else:
             # Not an M3U8, just proxy as-is (could be a segment)
-            response_headers = {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': '*',
-            }
-            for header in ['Content-Type', 'Content-Length']:
-                if header in r.headers:
-                    response_headers[header] = r.headers[header]
-            
-            return StreamingResponse(
-                iter([r.content]),
-                media_type=content_type,
-                headers=response_headers
-            )
+            async with http_client.stream('GET', url, headers=proxy_headers) as r:
+                r.raise_for_status()
+                response_headers = {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                    'Access-Control-Allow-Headers': '*',
+                }
+                for header in ['Content-Type', 'Content-Length']:
+                    if header in r.headers:
+                        response_headers[header] = r.headers[header]
+                
+                async def stream_generator():
+                    async for chunk in r.aiter_bytes():
+                        yield chunk
+                
+                return StreamingResponse(
+                    stream_generator(),
+                    media_type=content_type,
+                    headers=response_headers
+                )
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
