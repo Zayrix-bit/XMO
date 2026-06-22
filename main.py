@@ -677,32 +677,38 @@ async def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to 
         if request and 'range' in request.headers:
             proxy_headers['Range'] = request.headers['range']
         
-        async with http_client.stream('GET', url, headers=proxy_headers) as r:
-            r.raise_for_status()
-            
-            # Build response headers
-            response_headers = {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': '*',
-            }
-            
-            # Copy important headers
-            for header in ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'Cache-Control']:
-                if header in r.headers:
-                    response_headers[header] = r.headers[header]
-            
-            async def stream_generator():
+        # Get the stream
+        response_context = http_client.stream('GET', url, headers=proxy_headers)
+        r = await response_context.__aenter__()
+        r.raise_for_status()
+        
+        # Build response headers
+        response_headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+        }
+        
+        # Copy important headers
+        for header in ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'Cache-Control']:
+            if header in r.headers:
+                response_headers[header] = r.headers[header]
+        
+        async def stream_generator():
+            try:
                 async for chunk in r.aiter_bytes(chunk_size=1024 * 256):
                     yield chunk
-            
-            return StreamingResponse(
-                stream_generator(),
-                status_code=r.status_code,
-                media_type=response_headers.get('Content-Type', 'video/mp4'),
-                headers=response_headers
-            )
+            finally:
+                await response_context.__aexit__(None, None, None)
+        
+        return StreamingResponse(
+            stream_generator(),
+            status_code=r.status_code,
+            media_type=response_headers.get('Content-Type', 'video/mp4'),
+            headers=response_headers
+        )
     except Exception as e:
+        logger.error(f"Proxy error: {e}")
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/hls-proxy")
@@ -722,6 +728,7 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
             'Origin': f'https://{referer_domain}',
         }
         
+        # First check if it's an M3U8 playlist by reading the content
         response = await http_client.get(url, headers=proxy_headers)
         response.raise_for_status()
         
@@ -788,28 +795,34 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
                 }
             )
         else:
-            # Not an M3U8, just proxy as-is (could be a segment)
-            async with http_client.stream('GET', url, headers=proxy_headers) as r:
-                r.raise_for_status()
-                response_headers = {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                    'Access-Control-Allow-Headers': '*',
-                }
-                for header in ['Content-Type', 'Content-Length']:
-                    if header in r.headers:
-                        response_headers[header] = r.headers[header]
+            # Not an M3U8 - stream it
+            response_context = http_client.stream('GET', url, headers=proxy_headers)
+            r_stream = await response_context.__aenter__()
+            r_stream.raise_for_status()
                 
-                async def stream_generator():
-                    async for chunk in r.aiter_bytes():
+            response_headers = {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': '*',
+            }
+            for header in ['Content-Type', 'Content-Length']:
+                if header in r_stream.headers:
+                    response_headers[header] = r_stream.headers[header]
+                
+            async def stream_generator():
+                try:
+                    async for chunk in r_stream.aiter_bytes():
                         yield chunk
+                finally:
+                    await response_context.__aexit__(None, None, None)
                 
-                return StreamingResponse(
-                    stream_generator(),
-                    media_type=content_type,
-                    headers=response_headers
-                )
+            return StreamingResponse(
+                stream_generator(),
+                media_type=content_type,
+                headers=response_headers
+            )
     except Exception as e:
+        logger.error(f"HLS proxy error: {e}")
         return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":

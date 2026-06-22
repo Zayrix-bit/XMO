@@ -16,10 +16,11 @@ The platform scrapes the following from xHamster:
 ### Backend
 - **Python 3.12+**
 - **FastAPI**: Web framework
+- **httpx**: Async HTTP client
 - **BeautifulSoup4**: HTML parsing
-- **Requests**: HTTP client
 - **diskcache**: Persistent caching (stores scraped data locally for faster loads)
-- **uvicorn**: ASGI server
+- **uvicorn[standard]**: ASGI server
+- **pydantic-settings**: Configuration management
 
 ### Frontend
 - **React 19.2.6**: UI library
@@ -48,9 +49,23 @@ cd c:\Users\Ritesh\Downloads\hm  # or your project directory
 ```bash
 cd c:\Users\Ritesh\Downloads\hm
 ```
-2. Install Python dependencies:
+2. (Optional) Create a virtual environment:
 ```bash
-pip install fastapi beautifulsoup4 requests uvicorn diskcache
+python -m venv venv
+# On Windows
+venv\Scripts\activate
+# On Linux/Mac
+source venv/bin/activate
+```
+3. Install Python dependencies:
+```bash
+pip install -r requirements.txt
+```
+4. (Optional) Copy the example environment file and customize:
+```bash
+copy .env.example .env
+# Or on Linux/Mac
+cp .env.example .env
 ```
 
 ### 4. Set Up Frontend
@@ -65,14 +80,32 @@ npm install
 
 ## Running the Project
 
-### Start Backend Server
+### Quick Start (Windows Only)
+The easiest way to start both servers is to **double-click `start.bat`** in the project root directory!
+This will open two terminals and start both backend and frontend automatically.
+
+Alternatively, you can use these batch files:
+- `start-backend.bat`: Only start the backend server
+- `start-frontend.bat`: Only start the frontend server
+
+### Manual Start
+
+#### Start Backend Server
 In one terminal, from the root directory:
 ```bash
-python main.py
+# For development (with auto-reload)
+uvicorn app.main:app --reload
+
+# For production
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 This will start the API server on `http://localhost:8000`
 
-### Start Frontend Dev Server
+You can also view the automatic API documentation at:
+- **Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
+
+#### Start Frontend Dev Server
 In another terminal, from the frontend directory:
 ```bash
 cd frontend
@@ -101,7 +134,18 @@ Clear locally stored cached responses
 ## Project Structure
 ```
 hm/
-├── main.py                 # FastAPI backend
+├── app/                    # FastAPI backend package
+│   ├── __init__.py
+│   ├── main.py             # FastAPI application entry point
+│   ├── config.py           # Configuration settings
+│   ├── dependencies.py     # Shared dependencies (HTTP client, cache, etc.)
+│   ├── utils.py            # Helper functions (scraping, formatting, etc.)
+│   └── routers/            # API route modules
+│       ├── __init__.py
+│       ├── proxy.py        # Video proxy and HLS endpoints
+│       ├── videos.py       # Video-related endpoints
+│       ├── categories.py   # Category endpoints
+│       └── creators.py     # Creator endpoints
 ├── frontend/               # React frontend
 │   ├── src/
 │   │   ├── components/
@@ -109,8 +153,13 @@ hm/
 │   │   │   └── Footer.jsx
 │   │   └── pages/
 │   │       ├── Home.jsx
-│   │       └── Watch.jsx
+│   │       ├── Watch.jsx
+│   │       └── Creator.jsx
 │   └── package.json
+├── .cache/                 # Persistent cache directory
+├── .env.example            # Example environment variables
+├── .gitignore
+├── requirements.txt        # Python dependencies
 └── README.md               # This file
 ```
 
