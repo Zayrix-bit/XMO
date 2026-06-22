@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
 import { ArrowLeft, Heart, Clock, Play, Eye, User } from 'lucide-react';
 
@@ -78,7 +79,17 @@ export default function Creator() {
   }
 
   return (
-    <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
+    <>
+      <Helmet>
+        <title>{creatorData ? `${creatorData.name || slug} - Nighthub` : 'Creator - Nighthub'}</title>
+        <meta name="description" content={creatorData ? `Watch videos by ${creatorData.name || slug} on Nighthub.` : 'Browse creators on Nighthub.'} />
+        <meta property="og:title" content={creatorData ? `${creatorData.name || slug} - Nighthub` : 'Creator - Nighthub'} />
+        <meta property="og:description" content={creatorData ? `Watch videos by ${creatorData.name || slug} on Nighthub.` : 'Browse creators on Nighthub.'} />
+        {creatorData?.avatar && (
+          <meta property="og:image" content={creatorData.avatar} />
+        )}
+      </Helmet>
+      <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-gray-400 hover:text-[#ff2a5f] transition-colors mb-6 font-semibold"
@@ -182,6 +193,7 @@ export default function Creator() {
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
 import Hls from 'hls.js';
 import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, ChevronUp, Pause, Volume2, VolumeX, Maximize, Minimize, Loader2, ChevronLeft, ChevronRight, RotateCcw, RotateCw, Eye, User } from 'lucide-react';
@@ -482,7 +483,23 @@ export default function Watch() {
   }, [isPlaying, volume, isFullscreen, isMuted]);
 
   return (
-    <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
+    <>
+      <Helmet>
+        <title>{videoData ? `${videoData.title} - Nighthub` : 'Watch Video - Nighthub'}</title>
+        <meta name="description" content={videoData ? `Watch ${videoData.title} on Nighthub.` : 'Watch videos on Nighthub.'} />
+        <meta property="og:title" content={videoData ? `${videoData.title} - Nighthub` : 'Watch Video - Nighthub'} />
+        <meta property="og:description" content={videoData ? `Watch ${videoData.title} on Nighthub.` : 'Watch videos on Nighthub.'} />
+        {videoData?.related?.[0]?.image && (
+          <meta property="og:image" content={videoData.related[0].image} />
+        )}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={videoData ? `${videoData.title} - Nighthub` : 'Watch Video - Nighthub'} />
+        <meta name="twitter:description" content={videoData ? `Watch ${videoData.title} on Nighthub.` : 'Watch videos on Nighthub.'} />
+        {videoData?.related?.[0]?.image && (
+          <meta name="twitter:image" content={videoData.related[0].image} />
+        )}
+      </Helmet>
+      <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
       <div className="w-full">
         <button 
           onClick={() => navigate(-1)}
@@ -1069,6 +1086,7 @@ export default function Watch() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

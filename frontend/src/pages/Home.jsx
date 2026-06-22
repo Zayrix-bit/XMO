@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
 import { Play, Clock, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 
@@ -90,8 +91,47 @@ export default function Home() {
 
 
 
+  const pageTitle = () => {
+    if (!searchParams.get('tab') || tab === 'trending') {
+      return 'Trending Videos - Nighthub';
+    } else if (tab === 'new') {
+      return 'New Releases - Nighthub';
+    } else if (tab === 'categories') {
+      return 'Browse Categories - Nighthub';
+    } else if (tab === 'search' && query) {
+      return `Search Results for "${query}" - Nighthub`;
+    } else if (tab === 'category' && searchParams.get('slug')) {
+      const categoryName = searchParams.get('slug').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      return `${categoryName} Videos - Nighthub`;
+    }
+    return 'Nighthub - Video Streaming Platform';
+  };
+
+  const pageDescription = () => {
+    if (!searchParams.get('tab') || tab === 'trending') {
+      return 'Browse trending videos on Nighthub - the modern video streaming platform.';
+    } else if (tab === 'new') {
+      return 'Check out the latest video releases on Nighthub.';
+    } else if (tab === 'categories') {
+      return 'Explore all video categories available on Nighthub.';
+    } else if (tab === 'search' && query) {
+      return `Find videos matching "${query}" on Nighthub.`;
+    } else if (tab === 'category' && searchParams.get('slug')) {
+      const categoryName = searchParams.get('slug').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      return `Watch videos from the ${categoryName} category on Nighthub.`;
+    }
+    return 'Nighthub is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos.';
+  };
+
   return (
-    <div className="pt-24 pb-20 px-6 max-w-[1600px] mx-auto w-full">
+    <>
+      <Helmet>
+        <title>{pageTitle()}</title>
+        <meta name="description" content={pageDescription()} />
+        <meta property="og:title" content={pageTitle()} />
+        <meta property="og:description" content={pageDescription()} />
+      </Helmet>
+      <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
       {/* Header & Filters */}
       <div className="mb-10">
         <div>
@@ -306,6 +346,7 @@ export default function Home() {
           )}
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }
