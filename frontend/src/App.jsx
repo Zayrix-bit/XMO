@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import Home from './pages/Home';
 import Watch from './pages/Watch';
 import Creator from './pages/Creator';
+import Disclaimer from './pages/Disclaimer';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
@@ -29,6 +30,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/watch/:id" element={<Watch />} />
             <Route path="/creator/:slug" element={<Creator />} />
+            <Route path="/disclaimer" element={<Disclaimer />} />
           </Routes>
         </main>
         <Footer />

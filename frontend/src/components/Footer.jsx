@@ -148,6 +148,14 @@ export default function Footer() {
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Parental Controls")}
               >Parental Controls</li>
+              <li>
+                <Link
+                  to="/disclaimer"
+                  className="text-xs text-[#ff2a5f] font-medium hover:text-[#ff4a75] transition-colors"
+                >
+                  Disclaimer
+                </Link>
+              </li>
             </ul>
           </div>
 
