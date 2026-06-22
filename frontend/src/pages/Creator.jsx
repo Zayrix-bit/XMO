@@ -51,10 +51,10 @@ export default function Creator() {
           <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" /> Back
         </button>
         <div className="animate-pulse">
-          <div className="h-40 bg-[#121218] rounded-xl mb-6"></div>
+          <div className="h-40 bg-gray-800 rounded-xl mb-6"></div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {Array(10).fill(0).map((_, i) => (
-              <div key={i} className="bg-[#121218] rounded-xl aspect-video"></div>
+              <div key={i} className="bg-gray-800 rounded-xl aspect-video"></div>
             ))}
           </div>
         </div>
@@ -81,12 +81,24 @@ export default function Creator() {
   return (
     <>
       <Helmet>
-        <title>{creatorData ? `${creatorData.name || slug} - Nighthub` : 'Creator - Nighthub'}</title>
-        <meta name="description" content={creatorData ? `Watch videos by ${creatorData.name || slug} on Nighthub.` : 'Browse creators on Nighthub.'} />
-        <meta property="og:title" content={creatorData ? `${creatorData.name || slug} - Nighthub` : 'Creator - Nighthub'} />
-        <meta property="og:description" content={creatorData ? `Watch videos by ${creatorData.name || slug} on Nighthub.` : 'Browse creators on Nighthub.'} />
+        <title>{creatorData ? `${creatorData.name || slug} | Watch Free Videos - Nighthub` : 'Creator - Nighthub'}</title>
+        <meta name="description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Nighthub. Free streaming with no interruptions.` : 'Browse creators on Nighthub.'} />
+        <meta name="keywords" content={creatorData ? `${creatorData.name || slug}, free videos, creator, HD streaming` : 'creators, free videos, watch online'} />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href={window.location.href} />
+        <meta property="og:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - Nighthub` : 'Creator - Nighthub'} />
+        <meta property="og:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Nighthub. Free streaming with no interruptions.` : 'Browse creators on Nighthub.'} />
+        <meta property="og:type" content="profile" />
+        <meta property="og:url" content={window.location.href} />
+        <meta property="og:site_name" content="Nighthub" />
         {creatorData?.avatar && (
           <meta property="og:image" content={creatorData.avatar} />
+        )}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - Nighthub` : 'Creator - Nighthub'} />
+        <meta name="twitter:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Nighthub. Free streaming with no interruptions.` : 'Browse creators on Nighthub.'} />
+        {creatorData?.avatar && (
+          <meta name="twitter:image" content={creatorData.avatar} />
         )}
       </Helmet>
       <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">

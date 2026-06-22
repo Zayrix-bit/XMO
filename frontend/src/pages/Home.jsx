@@ -8,9 +8,9 @@ import { Play, Clock, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-reac
 function SkeletonCard() {
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="aspect-video bg-[#121218] rounded-lg w-full animate-pulse"></div>
-      <div className="h-4 bg-[#121218] rounded-md w-5/6 animate-pulse"></div>
-      <div className="h-3 bg-[#121218] rounded-md w-1/3 animate-pulse"></div>
+      <div className="aspect-video bg-gray-800 rounded-lg w-full animate-pulse"></div>
+      <div className="h-4 bg-gray-800 rounded-md w-5/6 animate-pulse"></div>
+      <div className="h-3 bg-gray-800 rounded-md w-1/3 animate-pulse"></div>
     </div>
   );
 }
@@ -81,34 +81,45 @@ export default function Home() {
 
   const pageTitle = () => {
     if (!searchParams.get('tab') || tab === 'trending') {
-      return 'Trending Videos - Nighthub';
+      return 'Trending Videos | Watch Free HD Videos - Nighthub';
     } else if (tab === 'new') {
-      return 'New Releases - Nighthub';
+      return 'New Releases | Latest HD Videos - Nighthub';
     } else if (tab === 'categories') {
-      return 'Browse Categories - Nighthub';
+      return 'Browse All Categories | Find Your Favorite Content - Nighthub';
     } else if (tab === 'search' && query) {
-      return `Search Results for "${query}" - Nighthub`;
+      return `Watch "${query}" Videos | Free HD Streaming - Nighthub`;
     } else if (tab === 'category' && searchParams.get('slug')) {
       const categoryName = searchParams.get('slug').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      return `${categoryName} Videos - Nighthub`;
+      return `${categoryName} Videos | Watch Free HD Content - Nighthub`;
     }
-    return 'Nighthub - Video Streaming Platform';
+    return 'Nighthub | Watch Free HD Videos Online';
   };
 
   const pageDescription = () => {
     if (!searchParams.get('tab') || tab === 'trending') {
-      return 'Browse trending videos on Nighthub - the modern video streaming platform.';
+      return 'Watch trending HD videos for free on Nighthub. Browse the most popular content across all categories and enjoy seamless streaming.';
     } else if (tab === 'new') {
-      return 'Check out the latest video releases on Nighthub.';
+      return 'Discover the latest HD video releases on Nighthub. Stay updated with fresh content and watch new videos as they arrive.';
     } else if (tab === 'categories') {
-      return 'Explore all video categories available on Nighthub.';
+      return 'Explore hundreds of video categories on Nighthub. From trending to niche content, find exactly what you want to watch.';
     } else if (tab === 'search' && query) {
-      return `Find videos matching "${query}" on Nighthub.`;
+      return `Find and watch HD videos matching "${query}" on Nighthub. Free streaming with high-quality playback.`;
     } else if (tab === 'category' && searchParams.get('slug')) {
-      const categoryName = searchParams.get('slug').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      return `Watch videos from the ${categoryName} category on Nighthub.`;
+      const categoryName = searchParams.get('slug').split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      return `Watch the best ${categoryName} videos in HD on Nighthub. Free streaming with no interruptions.`;
     }
-    return 'Nighthub is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos.';
+    return 'Nighthub is your go-to platform for free HD video streaming. Watch trending content, explore categories, and enjoy a seamless viewing experience.';
+  };
+
+  const pageKeywords = () => {
+    const base = 'free videos, HD streaming, online videos, watch videos, video platform';
+    if (tab === 'search' && query) {
+      return `${query}, ${base}`;
+    } else if (tab === 'category' && searchParams.get('slug')) {
+      const categoryName = searchParams.get('slug').split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      return `${categoryName} videos, ${categoryName}, ${base}`;
+    }
+    return base;
   };
 
   return (
@@ -116,8 +127,17 @@ export default function Home() {
       <Helmet>
         <title>{pageTitle()}</title>
         <meta name="description" content={pageDescription()} />
+        <meta name="keywords" content={pageKeywords()} />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href={window.location.href} />
         <meta property="og:title" content={pageTitle()} />
         <meta property="og:description" content={pageDescription()} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={window.location.href} />
+        <meta property="og:site_name" content="Nighthub" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={pageTitle()} />
+        <meta name="twitter:description" content={pageDescription()} />
       </Helmet>
       <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
       {/* Header & Filters */}
