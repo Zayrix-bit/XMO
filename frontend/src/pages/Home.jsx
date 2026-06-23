@@ -57,12 +57,15 @@ export default function Home() {
           endpoint = `/api/trending?page=${page}`; // default
         }
 
+        console.log("Fetching from:", import.meta.env.VITE_API_BASE_URL + endpoint);
         const response = await api.get(endpoint);
+        console.log("API Response:", response.data);
         if (response.data.status === 'success') {
           setVideos(response.data.results);
         }
       } catch (error) {
         console.error("Failed to fetch data:", error);
+        console.error("Error details:", error.response?.data || error.message);
       }
       setLoading(false);
     };

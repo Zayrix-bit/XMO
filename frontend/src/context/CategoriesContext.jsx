@@ -12,7 +12,9 @@ export function CategoriesProvider({ children }) {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
+        console.log("Categories API URL:", import.meta.env.VITE_API_BASE_URL + '/api/categories');
         const res = await api.get('/api/categories');
+        console.log("Categories API Response:", res.data);
         const cats = res.data.categories || [];
         const cntrs = res.data.countries || [];
         
@@ -21,6 +23,7 @@ export function CategoriesProvider({ children }) {
         setCategories([...cats, ...cntrs]);
       } catch (err) {
         console.error("Error fetching categories:", err);
+        console.error("Categories Error details:", err.response?.data || err.message);
       } finally {
         setLoading(false);
       }

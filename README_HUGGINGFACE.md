@@ -78,6 +78,12 @@ Your frontend will be available at a Vercel URL (e.g., `https://your-project-nam
 
 ---
 
+## Troubleshooting
+- If you see "No results found", clear the backend cache by visiting: `https://YOUR_USERNAME-YOUR_SPACE_NAME.hf.space/api/clear-cache`
+- Then refresh your frontend page!
+
+---
+
 ## Important Notes
 - Make sure your Hugging Face Space is public or properly configured
 - The backend CORS is set to allow all origins (`*`) so Vercel can access it

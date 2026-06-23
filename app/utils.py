@@ -132,24 +132,30 @@ def parse_video_list(html_or_soup: Any) -> list:
                 html = str(html_or_soup)
             page_data = extract_page_data(html)
         
+        logger.info(f"page_data keys: {list(page_data.keys()) if page_data else 'None'}")
+        
         video_thumb_props = None
         if page_data:
             if ('layoutPage' in page_data and 
                 'videoListProps' in page_data['layoutPage'] and 
                 'videoThumbProps' in page_data['layoutPage']['videoListProps']):
                 video_thumb_props = page_data['layoutPage']['videoListProps']['videoThumbProps']
+                logger.info("Found videos via layoutPage")
             elif ('searchResult' in page_data and 
                   'videoThumbProps' in page_data['searchResult']):
                 video_thumb_props = page_data['searchResult']['videoThumbProps']
+                logger.info("Found videos via searchResult")
             elif ('relatedVideosComponent' in page_data and 
                   'videoTabInitialData' in page_data['relatedVideosComponent'] and
                   'videoListProps' in page_data['relatedVideosComponent']['videoTabInitialData'] and
                   'videoThumbProps' in page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']):
                 video_thumb_props = page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']['videoThumbProps']
+                logger.info("Found videos via relatedVideosComponent")
             elif ('pagesCategoryComponent' in page_data and 
                   'trendingVideoListProps' in page_data['pagesCategoryComponent'] and
                   'videoThumbProps' in page_data['pagesCategoryComponent']['trendingVideoListProps']):
                 video_thumb_props = page_data['pagesCategoryComponent']['trendingVideoListProps']['videoThumbProps']
+                logger.info("Found videos via pagesCategoryComponent")
             else:
                 creator_section_keys = [
                     'newestVideoSectionComponent',
@@ -161,7 +167,10 @@ def parse_video_list(html_or_soup: Any) -> list:
                         section_data = page_data[key]
                         if 'videoListProps' in section_data and 'videoThumbProps' in section_data['videoListProps']:
                             video_thumb_props = section_data['videoListProps']['videoThumbProps']
+                            logger.info(f"Found videos via {key}")
                             break
+        
+        logger.info(f"Found {len(video_thumb_props) if video_thumb_props else 0} video thumb props")
         
         if video_thumb_props:
             for item in video_thumb_props:
@@ -184,8 +193,10 @@ def parse_video_list(html_or_soup: Any) -> list:
                             'duration': duration,
                             'views': views
                         })
-                except Exception:
+                except Exception as e:
+                    logger.error(f"Error parsing video item: {e}")
                     continue
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Error in parse_video_list: {e}")
+    logger.info(f"Returning {len(videos)} videos")
     return videos
