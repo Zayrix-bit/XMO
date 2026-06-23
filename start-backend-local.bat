@@ -1,0 +1,4 @@
+@echo off
+echo Starting Local Backend on http://localhost:7860...
+uvicorn app.main:app --host 0.0.0.0 --port 7860 --reload
+pause
