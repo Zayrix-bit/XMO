@@ -227,18 +227,60 @@ def format_views(views):
         return str(views)
 
 async def fetch_with_fallback(path: str, use_https: bool = True):
+    import gzip
+    import brotli
+    from io import BytesIO
+    
     protocol = 'https' if use_https else 'http'
     for domain in settings.xhamster_domains:
         try:
             url = f"{protocol}://{domain}{path}"
             logger.info(f"Trying domain: {url}")
-            response = await http_client.get(url, headers=HEADERS)
-            logger.info(f"Initial response status code: {response.status_code}")
             
-            if response.status_code == 200 and 'REDIRECT_URL' in response.text:
+            # Update headers to look more like real browser and accept all encodings
+            headers = {
+                **HEADERS,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',  # Accept all encodings
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'max-age=0',
+                'Connection': 'keep-alive',
+                'DNT': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+            }
+            
+            response = await http_client.get(url, headers=headers, follow_redirects=True)
+            logger.info(f"Initial response status code: {response.status_code}")
+            logger.info(f"Response headers: {dict(response.headers)}")
+            
+            # MANUALLY DECOMPRESS RESPONSE!
+            content_encoding = response.headers.get('content-encoding', '')
+            logger.info(f"Content-Encoding: {content_encoding}")
+            
+            content_bytes = response.content
+            if content_encoding:
+                if 'gzip' in content_encoding:
+                    logger.info("Decompressing gzip...")
+                    content_bytes = gzip.decompress(response.content)
+                elif 'br' in content_encoding:
+                    logger.info("Decompressing brotli...")
+                    content_bytes = brotli.decompress(response.content)
+                elif 'deflate' in content_encoding:
+                    logger.info("Decompressing deflate...")
+                    import zlib
+                    content_bytes = zlib.decompress(response.content, -zlib.MAX_WBITS)
+            
+            html = content_bytes.decode('utf-8', errors='replace')
+            
+            if response.status_code == 200 and 'REDIRECT_URL' in html:
                 logger.info("Found anti-bot page, following redirect...")
-                soup = BeautifulSoup(response.text, 'html.parser')
-                redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
+                soup = BeautifulSoup(html, 'html.parser')
+                redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', html)
                 if redirect_url_match:
                     redirect_url = redirect_url_match.group(1)
                     noscript_link = soup.find('noscript')
@@ -250,22 +292,42 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
                             fp = fp_match.group(1)
                     final_url = redirect_url + f"fp={fp}"
                     logger.info(f"Following redirect to: {final_url}")
-                    response = await http_client.get(final_url, headers=HEADERS)
+                    response = await http_client.get(final_url, headers=headers, follow_redirects=True)
+                    
+                    # Decompress again for the redirect response!
+                    content_encoding = response.headers.get('content-encoding', '')
+                    logger.info(f"Redirect Content-Encoding: {content_encoding}")
+                    content_bytes = response.content
+                    if content_encoding:
+                        if 'gzip' in content_encoding:
+                            content_bytes = gzip.decompress(response.content)
+                        elif 'br' in content_encoding:
+                            content_bytes = brotli.decompress(response.content)
+                        elif 'deflate' in content_encoding:
+                            import zlib
+                            content_bytes = zlib.decompress(response.content, -zlib.MAX_WBITS)
+                    html = content_bytes.decode('utf-8', errors='replace')
                     logger.info(f"Final response status code: {response.status_code}")
             
             response.raise_for_status()
             logger.info(f"Success with domain: {domain}")
             logger.info(f"Final URL (after redirects): {response.url}")
-            return response.text, domain
+            logger.info(f"HTML length: {len(html)}")
+            logger.info(f"First 500 chars of HTML: {html[:500] if html else 'empty'}")
+            return html, domain
         except Exception as e:
             logger.error(f"Failed with domain {domain}: {str(e)}")
+            import traceback
+            logger.error(f"Stack trace: {traceback.format_exc()}")
             continue
     return None, None
 
 def parse_video_list(html_or_soup):
     videos = []
     try:
+        # First, try the JSON method (from app/utils.py)
         page_data = None
+        html = None
         if isinstance(html_or_soup, dict):
             page_data = html_or_soup
         else:
@@ -318,7 +380,7 @@ def parse_video_list(html_or_soup):
                             logger.info(f"Found videos via {key}")
                             break
         
-        logger.info(f"Found {len(video_thumb_props) if video_thumb_props else 0} video thumb props")
+        logger.info(f"Found {len(video_thumb_props) if video_thumb_props else 0} video thumb props via JSON")
         
         if video_thumb_props:
             for item in video_thumb_props:
@@ -344,9 +406,55 @@ def parse_video_list(html_or_soup):
                 except Exception as e:
                     logger.error(f"Error parsing video item: {e}")
                     continue
+        
+        # If JSON method failed (0 videos), try the OLD BeautifulSoup method as FALLBACK
+        if not videos and html:
+            logger.info("JSON method failed, trying BeautifulSoup fallback method")
+            soup = BeautifulSoup(html, 'html.parser')
+            # Find all video thumb elements (old method from original main.py)
+            for thumb in soup.find_all('div', class_=lambda x: x and 'thumb' in x.lower()):
+                try:
+                    # Try to find title and link
+                    a_tag = thumb.find('a')
+                    if a_tag and a_tag.get('href'):
+                        title = a_tag.get('title', '') or a_tag.get_text(strip=True)
+                        link = a_tag.get('href', '')
+                        if not link.startswith('http'):
+                            link = 'https://xhamster.com' + link
+                        
+                        # Try to find image
+                        img_tag = thumb.find('img')
+                        image = ''
+                        if img_tag:
+                            image = img_tag.get('src', '') or img_tag.get('data-src', '')
+                        
+                        # Try to find duration
+                        duration_tag = thumb.find('span', class_=lambda x: x and ('duration' in x.lower() or 'time' in x.lower()))
+                        duration = duration_tag.get_text(strip=True) if duration_tag else ''
+                        
+                        # Try to find views
+                        views_tag = thumb.find('span', class_=lambda x: x and ('view' in x.lower() or 'counter' in x.lower()))
+                        views = views_tag.get_text(strip=True) if views_tag else ''
+                        
+                        if title and link:
+                            videos.append({
+                                'id': link.split('/')[-1] if '/' in link else '',
+                                'title': title,
+                                'link': link,
+                                'image': image,
+                                'duration': duration,
+                                'views': views
+                            })
+                except Exception as e:
+                    logger.error(f"Error in fallback parsing: {e}")
+                    continue
+            
+            logger.info(f"Found {len(videos)} videos via BeautifulSoup fallback")
+    
     except Exception as e:
         logger.error(f"Error in parse_video_list: {e}")
-    logger.info(f"Returning {len(videos)} videos")
+    
+    logger.info(f"Returning {len(videos)} videos total")
     return videos
 
 # === ENDPOINTS ===
@@ -357,6 +465,17 @@ def home():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+# Debug endpoint to see raw HTML (for testing only!)
+@app.get("/api/debug/html")
+async def debug_html(path: str = Query("/", description="Path to fetch, e.g., '/' for trending")):
+    html, domain = await fetch_with_fallback(path)
+    return {
+        "status": "success", 
+        "domain": domain, 
+        "html_length": len(html) if html else 0,
+        "html_preview": html[:2000] if html else None
+    }
 
 @app.get("/api/clear-cache")
 def clear_cache_endpoint():
