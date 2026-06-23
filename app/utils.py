@@ -1,5 +1,6 @@
 import re
 import logging
+import json
 from typing import Tuple, Optional, Dict, Any
 from bs4 import BeautifulSoup
 import httpx
@@ -35,7 +36,6 @@ def extract_page_data(html: str) -> Optional[Dict[str, Any]]:
                     if brace_count == 0:
                         json_str = content[start_brace:end_brace]
                         try:
-                            import json
                             data = json.loads(json_str)
                             size = len(json_str)
                             if isinstance(data, dict) and size > largest_size:
@@ -132,31 +132,44 @@ def parse_video_list(html_or_soup: Any) -> list:
                 html = str(html_or_soup)
             page_data = extract_page_data(html)
         
-        logger.info(f"page_data keys: {list(page_data.keys()) if page_data else 'None'}")
+        # Print search correction info if available
+        if page_data:
+            logger.info(f"page_data keys: {sorted(page_data.keys())}")
+            if 'entity' in page_data:
+                logger.info(f"entity: {page_data['entity']}")
+            if 'correction' in page_data:
+                logger.info(f"correction: {page_data['correction']}")
         
+        # Check multiple possible paths for videoThumbProps
         video_thumb_props = None
         if page_data:
+            # Path 1: for trending/newest pages
             if ('layoutPage' in page_data and 
                 'videoListProps' in page_data['layoutPage'] and 
                 'videoThumbProps' in page_data['layoutPage']['videoListProps']):
                 video_thumb_props = page_data['layoutPage']['videoListProps']['videoThumbProps']
                 logger.info("Found videos via layoutPage")
+            # Path 2: for search pages
             elif ('searchResult' in page_data and 
                   'videoThumbProps' in page_data['searchResult']):
                 video_thumb_props = page_data['searchResult']['videoThumbProps']
                 logger.info("Found videos via searchResult")
+            # Path 3: for individual video pages (related videos)
             elif ('relatedVideosComponent' in page_data and 
                   'videoTabInitialData' in page_data['relatedVideosComponent'] and
                   'videoListProps' in page_data['relatedVideosComponent']['videoTabInitialData'] and
                   'videoThumbProps' in page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']):
                 video_thumb_props = page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']['videoThumbProps']
                 logger.info("Found videos via relatedVideosComponent")
+            # Path 4: for category pages
             elif ('pagesCategoryComponent' in page_data and 
                   'trendingVideoListProps' in page_data['pagesCategoryComponent'] and
                   'videoThumbProps' in page_data['pagesCategoryComponent']['trendingVideoListProps']):
                 video_thumb_props = page_data['pagesCategoryComponent']['trendingVideoListProps']['videoThumbProps']
                 logger.info("Found videos via pagesCategoryComponent")
+            # Path 5: for creator pages
             else:
+                # Check all possible creator video section keys
                 creator_section_keys = [
                     'newestVideoSectionComponent',
                     'trendingVideoSectionComponent',
