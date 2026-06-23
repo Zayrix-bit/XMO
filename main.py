@@ -80,13 +80,13 @@ def format_views(views):
     else:
         return str(views)
 
-app = FastAPI()
+from contextlib import asynccontextmanager
 
 # Global async HTTP client with connection pooling
 http_client = None
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     global http_client
     http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(15.0),
@@ -94,12 +94,12 @@ async def startup_event():
         limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
     )
     logger.info("HTTP client initialized")
-
-@app.on_event("shutdown")
-async def shutdown_event():
+    yield
     if http_client:
         await http_client.aclose()
         logger.info("HTTP client closed")
+
+app = FastAPI(lifespan=lifespan)
 
 # Initialize persistent disk cache
 cache = diskcache.Cache('.cache')
@@ -169,7 +169,6 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br',
     'Referer': 'https://xhamster.com/',
     'Sec-Fetch-Dest': 'document',
     'Sec-Fetch-Mode': 'navigate',
@@ -230,6 +229,20 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
 @app.get("/")
 def home():
     return {"status": "success", "message": "xHamster Scraper API is running!"}
+
+# Debug endpoint to see raw HTML and page_data
+@app.get("/api/debug/html")
+async def debug_html(path: str = Query("/", description="Path to fetch")):
+    html, domain = await fetch_with_fallback(path)
+    page_data = extract_page_data(html) if html else None
+    
+    return {
+        "status": "success", 
+        "domain": domain, 
+        "html_length": len(html) if html else 0,
+        "html": html,
+        "page_data": page_data
+    }
 
 @app.get("/api/clear-cache")
 def clear_cache():
@@ -307,11 +320,13 @@ def parse_video_list(html_or_soup):
         
         # Print search correction info if available
         if page_data:
-            print(f"[DEBUG] page_data keys: {sorted(page_data.keys())}")
+            logger.info(f"[DEBUG] page_data keys: {sorted(page_data.keys())}")
+            import json
+            logger.info(f"[DEBUG] page_data: {json.dumps(page_data, default=str)}")
             if 'entity' in page_data:
-                print(f"[DEBUG] entity: {page_data['entity']}")
+                logger.info(f"[DEBUG] entity: {page_data['entity']}")
             if 'correction' in page_data:
-                print(f"[DEBUG] correction: {page_data['correction']}")
+                logger.info(f"[DEBUG] correction: {page_data['correction']}")
         
         # Check multiple possible paths for videoThumbProps
         video_thumb_props = None
@@ -826,4 +841,4 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
         return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=7860, reload=True)
