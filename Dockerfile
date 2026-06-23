@@ -6,11 +6,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire project (including app/ folder)
-COPY . .
+# Copy ONLY the single root main.py (complete working file)
+COPY main.py .
 
 # Expose port
 EXPOSE 7860
 
-# Run the app
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Run the app from the single root main.py file
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
