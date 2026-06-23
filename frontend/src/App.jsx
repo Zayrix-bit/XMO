@@ -11,13 +11,20 @@ import AgeVerification from './components/AgeVerification';
 
 function App() {
   const [isVerified, setIsVerified] = useState(false);
+  const [isChecking, setIsChecking] = useState(true); // New state for checking localStorage
 
   useEffect(() => {
     const saved = localStorage.getItem('ageVerified');
     if (saved === 'true') {
       setIsVerified(true);
     }
+    setIsChecking(false); // Done checking after we've read localStorage
   }, []);
+
+  // Don't render anything (or just a blank screen) until we've checked!
+  if (isChecking) {
+    return <div className="min-h-screen bg-[#0f0f13]"></div>;
+  }
 
   return (
     <BrowserRouter>
@@ -36,7 +43,9 @@ function App() {
         <meta name="twitter:description" content="Hotster is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
       </Helmet>
       <div className="min-h-screen bg-[#0f0f13] text-white flex flex-col font-sans">
-        <AgeVerification isVerified={isVerified} setIsVerified={setIsVerified} />
+        {/* Only show AgeVerification if NOT verified and done checking */}
+        {!isVerified && <AgeVerification isVerified={isVerified} setIsVerified={setIsVerified} />}
+        
         {isVerified && <Navbar />}
         <main className="flex-1 max-w-[1600px] mx-auto w-full">
           <Routes>

@@ -1,6 +1,9 @@
 import logging
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from .config import settings
 from .dependencies import lifespan, get_cache
@@ -39,12 +42,6 @@ app.include_router(categories.router)
 app.include_router(creators.router)
 
 
-@app.get("/")
-async def home():
-    """Home endpoint."""
-    return {"status": "success", "message": f"{settings.app_name} is running!"}
-
-
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -72,5 +69,19 @@ async def options_handler(path: str):
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+        }
+    }
+
+
+@app.get("/")
+async def home():
+    return {
+        "status": "success",
+        "message": f"{settings.app_name} API is running!",
+        "api_endpoints": {
+            "trending": "/api/trending",
+            "newest": "/api/newest",
+            "categories": "/api/categories",
+            "health": "/health"
         }
     }
