@@ -227,55 +227,29 @@ def format_views(views):
         return str(views)
 
 async def fetch_with_fallback(path: str, use_https: bool = True):
-    import gzip
-    import brotli
-    from io import BytesIO
-    
     protocol = 'https' if use_https else 'http'
     for domain in settings.xhamster_domains:
         try:
             url = f"{protocol}://{domain}{path}"
             logger.info(f"Trying domain: {url}")
             
-            # Update headers to look more like real browser and accept all encodings
+            # Simple headers - tell server not to compress!
             headers = {
-                **HEADERS,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',  # Accept all encodings
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Cache-Control': 'max-age=0',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'identity',  # Ask for UNCOMPRESSED!
                 'Connection': 'keep-alive',
-                'DNT': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Upgrade-Insecure-Requests': '1',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+                'Upgrade-Insecure-Requests': '1'
             }
             
             response = await http_client.get(url, headers=headers, follow_redirects=True)
-            logger.info(f"Initial response status code: {response.status_code}")
+            logger.info(f"Response status code: {response.status_code}")
             logger.info(f"Response headers: {dict(response.headers)}")
             
-            # MANUALLY DECOMPRESS RESPONSE!
-            content_encoding = response.headers.get('content-encoding', '')
-            logger.info(f"Content-Encoding: {content_encoding}")
-            
-            content_bytes = response.content
-            if content_encoding:
-                if 'gzip' in content_encoding:
-                    logger.info("Decompressing gzip...")
-                    content_bytes = gzip.decompress(response.content)
-                elif 'br' in content_encoding:
-                    logger.info("Decompressing brotli...")
-                    content_bytes = brotli.decompress(response.content)
-                elif 'deflate' in content_encoding:
-                    logger.info("Decompressing deflate...")
-                    import zlib
-                    content_bytes = zlib.decompress(response.content, -zlib.MAX_WBITS)
-            
-            html = content_bytes.decode('utf-8', errors='replace')
+            html = response.text
+            logger.info(f"HTML length: {len(html)}")
+            logger.info(f"First 1000 chars of HTML: {html[:1000] if html else 'empty'}")
             
             if response.status_code == 200 and 'REDIRECT_URL' in html:
                 logger.info("Found anti-bot page, following redirect...")
@@ -293,30 +267,15 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
                     final_url = redirect_url + f"fp={fp}"
                     logger.info(f"Following redirect to: {final_url}")
                     response = await http_client.get(final_url, headers=headers, follow_redirects=True)
-                    
-                    # Decompress again for the redirect response!
-                    content_encoding = response.headers.get('content-encoding', '')
-                    logger.info(f"Redirect Content-Encoding: {content_encoding}")
-                    content_bytes = response.content
-                    if content_encoding:
-                        if 'gzip' in content_encoding:
-                            content_bytes = gzip.decompress(response.content)
-                        elif 'br' in content_encoding:
-                            content_bytes = brotli.decompress(response.content)
-                        elif 'deflate' in content_encoding:
-                            import zlib
-                            content_bytes = zlib.decompress(response.content, -zlib.MAX_WBITS)
-                    html = content_bytes.decode('utf-8', errors='replace')
-                    logger.info(f"Final response status code: {response.status_code}")
+                    html = response.text
+                    logger.info(f"Final HTML length: {len(html)}")
+                    logger.info(f"Final first 1000 chars of HTML: {html[:1000] if html else 'empty'}")
             
             response.raise_for_status()
             logger.info(f"Success with domain: {domain}")
-            logger.info(f"Final URL (after redirects): {response.url}")
-            logger.info(f"HTML length: {len(html)}")
-            logger.info(f"First 500 chars of HTML: {html[:500] if html else 'empty'}")
             return html, domain
         except Exception as e:
-            logger.error(f"Failed with domain {domain}: {str(e)}")
+            logger.error(f"Failed with domain {domain}: {type(e).__name__}: {str(e)}")
             import traceback
             logger.error(f"Stack trace: {traceback.format_exc()}")
             continue
@@ -338,7 +297,9 @@ def parse_video_list(html_or_soup):
             page_data = extract_page_data(html)
         
         if page_data:
+            import json
             logger.info(f"page_data keys: {sorted(page_data.keys())}")
+            logger.info(f"page_data full: {json.dumps(page_data, indent=2, default=str)}")
             if 'entity' in page_data:
                 logger.info(f"entity: {page_data['entity']}")
             if 'correction' in page_data:
@@ -474,7 +435,7 @@ async def debug_html(path: str = Query("/", description="Path to fetch, e.g., '/
         "status": "success", 
         "domain": domain, 
         "html_length": len(html) if html else 0,
-        "html_preview": html[:2000] if html else None
+        "html": html  # Return full HTML
     }
 
 @app.get("/api/clear-cache")
