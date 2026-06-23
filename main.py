@@ -1,7 +1,6 @@
-
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import StreamingResponse
 import httpx
 from bs4 import BeautifulSoup
 import re
@@ -9,166 +8,14 @@ import uvicorn
 import json
 import diskcache
 import functools
-from urllib.parse import quote, urlparse
+from fastapi import Request
 import asyncio
 import logging
 
-# === CONFIG (from app/config.py) ===
-from pydantic_settings import BaseSettings
-from typing import List
-
-class Settings(BaseSettings):
-    app_name: str = "XHamster Scraper API"
-    debug: bool = True
-    host: str = "0.0.0.0"
-    port: int = 7860
-    backend_cors_origins: List[str] = ["*"]
-    xhamster_domains: List[str] = [
-        "xhamster.com",
-        "xhamster.desi",
-        "xhamster2.com",
-        "xhamster3.com",
-        "xhamster4.com",
-        "xhamster5.com",
-        "xhamster6.com",
-        "xhamster7.com",
-        "xhamster8.com",
-        "xhamster9.com",
-        "xhamster10.com",
-    ]
-    cache_ttl_seconds: int = 3600
-    cache_dir: str = ".cache"
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-
-settings = Settings()
-
-# === LOGGING ===
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
-# === FASTAPI APP & LIFESPAN (from app/dependencies.py) ===
-app = FastAPI(
-    title=settings.app_name,
-    description="API for scraping and streaming xHamster content",
-    version="1.0.0"
-)
-
-http_client: httpx.AsyncClient | None = None
-cache = diskcache.Cache(settings.cache_dir)
-
-@app.on_event("startup")
-async def startup_event():
-    global http_client
-    http_client = httpx.AsyncClient(
-        timeout=httpx.Timeout(15.0),
-        follow_redirects=True,
-        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
-    )
-    logger.info("HTTP client initialized")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    if http_client:
-        await http_client.aclose()
-        logger.info("HTTP client closed")
-
-# === CACHE DECORATOR ===
-def cache_response(ttl_seconds: int):
-    def decorator(func):
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
-            key_parts = [func.__name__]
-            for k, v in kwargs.items():
-                if isinstance(v, Request):
-                    continue
-                key_parts.append(f"{k}={v}")
-            
-            cache_key = ":".join(key_parts)
-            cached_value = cache.get(cache_key)
-            if cached_value is not None:
-                return cached_value
-                
-            if asyncio.iscoroutinefunction(func):
-                result = await func(*args, **kwargs)
-            else:
-                result = func(*args, **kwargs)
-            
-            if isinstance(result, dict) and result.get("status") == "success":
-                cache.set(cache_key, result, expire=ttl_seconds)
-            
-            return result
-        return wrapper
-    return decorator
-
-# === CORS ===
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.backend_cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# === OPTIONS HANDLER ===
-@app.options("/api/{path:path}")
-async def options_handler(path: str):
-    return {
-        "status": "ok",
-        "headers": {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        }
-    }
-
-# === CONSTANTS ===
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Referer': 'https://xhamster.com/',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'same-origin',
-    'Cache-Control': 'max-age=0',
-    'Upgrade-Insecure-Requests': '1'
-}
-
-COUNTRY_SLUGS = {
-    'indian', 'desi', 'russian', 'american', 'british', 'japanese', 'korean', 'chinese', 'german', 'french',
-    'italian', 'spanish', 'brazilian', 'mexican', 'colombian', 'canadian', 'australian', 'filipino', 'thai',
-    'vietnamese', 'indonesian', 'malaysian', 'arab', 'egyptian', 'moroccan', 'turkish', 'iranian', 'pakistani',
-    'bangladeshi', 'sri-lankan', 'nepali', 'south-african', 'nigerian', 'kenyan', 'ukrainian', 'polish', 'czech',
-    'hungarian', 'romanian', 'bulgarian', 'swedish', 'norwegian', 'danish', 'finnish', 'dutch', 'belgian', 'swiss',
-    'austrian', 'greek', 'portuguese', 'argentinian', 'chilean', 'peruvian', 'venezuelan', 'cuban', 'puerto-rican',
-    'dominican', 'jamaican', 'israeli', 'lebanese', 'syrian', 'iraqi', 'afghan', 'uzbek', 'kazakh', 'somali',
-    'ethiopian', 'sudanese', 'ugandan', 'zimbabwean', 'zambian', 'tanzanian', 'ghanaian', 'cameroonian', 'senegalese',
-    'ivorian', 'malian', 'guinean', 'angolan', 'mozambican', 'madagascan', 'rwandan', 'burundian', 'malawian',
-    'botswanan', 'namibian', 'swazi', 'lesotho', 'mauritian', 'seychellois', 'comoran', 'djiboutian', 'eritrean',
-    'south-sudanese', 'central-african', 'chadian', 'nigerien', 'burkinabe', 'togolese', 'beninese', 'liberian',
-    'sierra-leonean', 'gambian', 'bissau-guinean', 'equatorial-guinean', 'gabonese', 'congolese', 'sao-tomean',
-    'cape-verdean', 'saudi', 'emirati', 'qatari', 'kuwaiti', 'bahraini', 'omani', 'yemeni', 'jordanian', 'palestinian',
-    'cypriot', 'maltese', 'georgian', 'armenian', 'azerbaijani', 'turkmen', 'tajik', 'kyrgyz', 'mongolian', 'taiwanese',
-    'singaporean', 'bruneian', 'timorese', 'papuan', 'fijian', 'samoan', 'tongan', 'vanuatuan', 'solomon-islander',
-    'micronesian', 'marshallese', 'palauan', 'nauruan', 'tuvaluan', 'kiribati', 'latvian', 'lithuanian', 'estonian',
-    'belarusian', 'moldovan', 'slovak', 'slovenian', 'croatian', 'bosnian', 'serbian', 'montenegrin', 'macedonian',
-    'albanian', 'kosovar', 'icelandic', 'irish', 'scottish', 'welsh', 'english', 'greenlandic', 'faroese', 'andorran',
-    'monacan', 'sammarinese', 'vatican', 'liechtenstein', 'luxembourgish', 'bahamian', 'belizean', 'costa-rican',
-    'salvadoran', 'guatemalan', 'honduran', 'nicaraguan', 'panamanian', 'antiguan', 'barbadian', 'grenadian', 'haitian',
-    'kittitian', 'lucian', 'vincentian', 'trinidadian', 'surinamese', 'guyanese', 'ecuadorian', 'bolivian', 'paraguayan',
-    'uruguayan', 'asian', 'latina', 'latino', 'euro', 'european', 'arabian', 'african', 'black', 'ebony', 'white'
-}
-
-# === UTILITY FUNCTIONS (from app/utils.py, enhanced with logging) ===
-def extract_page_data(html: str):
+def extract_page_data(html):
+    """Extract page data from HTML by finding the largest JSON object in script tags"""
     soup = BeautifulSoup(html, 'html.parser')
     largest_data = None
     largest_size = 0
@@ -176,13 +23,17 @@ def extract_page_data(html: str):
     for script in soup.find_all('script'):
         if script.string:
             try:
+                # Find all JSON objects in the script
+                # Use a pattern that matches balanced braces (handles nested objects)
                 content = script.string
                 start_idx = 0
                 while True:
+                    # Find the first opening brace
                     start_brace = content.find('{', start_idx)
                     if start_brace == -1:
                         break
                     
+                    # Find matching closing brace
                     brace_count = 1
                     end_brace = start_brace + 1
                     while end_brace < len(content) and brace_count > 0:
@@ -209,6 +60,7 @@ def extract_page_data(html: str):
     return largest_data
 
 def format_duration(seconds):
+    """Convert seconds to MM:SS or HH:MM:SS"""
     seconds = int(seconds)
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
@@ -218,7 +70,9 @@ def format_duration(seconds):
     else:
         return f"{minutes:02d}:{secs:02d}"
 
+
 def format_views(views):
+    """Format view count (e.g., 1234 → 1.2K, 1234567 → 1.2M)"""
     if views >= 1000000:
         return f"{views / 1000000:.1f}M"
     elif views >= 1000:
@@ -226,108 +80,265 @@ def format_views(views):
     else:
         return str(views)
 
+app = FastAPI()
+
+# Global async HTTP client with connection pooling
+http_client = None
+
+@app.on_event("startup")
+async def startup_event():
+    global http_client
+    http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(15.0),
+        follow_redirects=True,
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
+    )
+    logger.info("HTTP client initialized")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    if http_client:
+        await http_client.aclose()
+        logger.info("HTTP client closed")
+
+# Initialize persistent disk cache
+cache = diskcache.Cache('.cache')
+
+def cache_response(ttl_seconds: int):
+    """Decorator to cache FastAPI endpoint responses using diskcache."""
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            key_parts = [func.__name__]
+            for k, v in kwargs.items():
+                if isinstance(v, Request):
+                    continue
+                key_parts.append(f"{k}={v}")
+            
+            cache_key = ":".join(key_parts)
+            cached_value = cache.get(cache_key)
+            if cached_value is not None:
+                return cached_value
+                
+            if asyncio.iscoroutinefunction(func):
+                result = await func(*args, **kwargs)
+            else:
+                result = func(*args, **kwargs)
+            
+            if isinstance(result, dict) and result.get("status") == "success":
+                cache.set(cache_key, result, expire=ttl_seconds)
+                
+            return result
+        return wrapper
+    return decorator
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Explicit OPTIONS handler for CORS preflight
+@app.options("/api/{path:path}")
+async def options_handler():
+    return {
+        "status": "ok",
+        "headers": {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    }
+
+XHAMSTER_DOMAINS = [
+    'xhamster.com',
+    'xhamster.desi',
+    'xhamster2.com',
+    'xhamster3.com',
+    'xhamster4.com',
+    'xhamster5.com',
+    'xhamster6.com',
+    'xhamster7.com',
+    'xhamster8.com',
+    'xhamster9.com',
+    'xhamster10.com',
+]
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Referer': 'https://xhamster.com/',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    'Cache-Control': 'max-age=0',
+    'Upgrade-Insecure-Requests': '1'
+}
+
+
 async def fetch_with_fallback(path: str, use_https: bool = True):
+    """
+    Try fetching from all xHamster domains until one works.
+    :param path: Path part of URL (e.g., "/newest/2", "/search/video?q=milf")
+    :param use_https: Whether to use https
+    :return: (response_text, working_domain)
+    """
     protocol = 'https' if use_https else 'http'
-    for domain in settings.xhamster_domains:
+    for domain in XHAMSTER_DOMAINS:
         try:
             url = f"{protocol}://{domain}{path}"
             logger.info(f"Trying domain: {url}")
+            response = await http_client.get(url, headers=HEADERS)
+            logger.info(f"Initial response status code: {response.status_code}")
             
-            # Simple headers - tell server not to compress!
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'identity',  # Ask for UNCOMPRESSED!
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1'
-            }
-            
-            response = await http_client.get(url, headers=headers, follow_redirects=True)
-            logger.info(f"Response status code: {response.status_code}")
-            logger.info(f"Response headers: {dict(response.headers)}")
-            
-            html = response.text
-            logger.info(f"HTML length: {len(html)}")
-            logger.info(f"First 1000 chars of HTML: {html[:1000] if html else 'empty'}")
-            
-            if response.status_code == 200 and 'REDIRECT_URL' in html:
+            # Check if this is the anti-bot redirect page
+            if response.status_code == 200 and 'REDIRECT_URL' in response.text:
                 logger.info("Found anti-bot page, following redirect...")
-                soup = BeautifulSoup(html, 'html.parser')
-                redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', html)
+                soup = BeautifulSoup(response.text, 'html.parser')
+                # Find the redirect URL from the script tag
+                import re
+                redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
                 if redirect_url_match:
                     redirect_url = redirect_url_match.group(1)
+                    # Let's use the fp parameter from the noscript link
                     noscript_link = soup.find('noscript')
-                    fp = '-5'
+                    fp = '-5'  # default
                     if noscript_link and noscript_link.find('a'):
                         fp_url = noscript_link.find('a')['href']
                         fp_match = re.search(r'fp=([^&]+)', fp_url)
                         if fp_match:
                             fp = fp_match.group(1)
+                    # Build the final URL
                     final_url = redirect_url + f"fp={fp}"
                     logger.info(f"Following redirect to: {final_url}")
-                    response = await http_client.get(final_url, headers=headers, follow_redirects=True)
-                    html = response.text
-                    logger.info(f"Final HTML length: {len(html)}")
-                    logger.info(f"Final first 1000 chars of HTML: {html[:1000] if html else 'empty'}")
+                    # Now fetch the actual page
+                    response = await http_client.get(final_url, headers=HEADERS)
+                    logger.info(f"Final response status code: {response.status_code}")
             
             response.raise_for_status()
             logger.info(f"Success with domain: {domain}")
-            return html, domain
+            logger.info(f"Final URL (after redirects): {response.url}")
+            return response.text, domain
         except Exception as e:
-            logger.error(f"Failed with domain {domain}: {type(e).__name__}: {str(e)}")
-            import traceback
-            logger.error(f"Stack trace: {traceback.format_exc()}")
+            logger.error(f"Failed with domain {domain}: {str(e)}")
             continue
     return None, None
 
+@app.get("/")
+def home():
+    return {"status": "success", "message": "xHamster Scraper API is running!"}
+
+@app.get("/api/clear-cache")
+def clear_cache():
+    """Clear all cached responses"""
+    cache.clear()
+    return {"status": "success", "message": "Cache cleared successfully!"}
+
+@app.get("/api/creator/{creator_slug}")
+@cache_response(ttl_seconds=3600)
+async def get_creator_videos(creator_slug: str, page: int = 1):
+    """Fetch creator's profile and videos."""
+    # First, try with /creators/ path
+    path = f"/creators/{creator_slug}"
+    if page > 1:
+        path += f"/{page}"
+    response_text, domain = await fetch_with_fallback(path)
+    if not response_text:
+        # Try /users/ path as fallback
+        path = f"/users/{creator_slug}"
+        if page > 1:
+            path += f"/{page}"
+        response_text, domain = await fetch_with_fallback(path)
+    
+    if not response_text:
+        return {"status": "error", "message": "Could not fetch creator profile"}
+    
+    page_data = extract_page_data(response_text)
+    creator = None
+    videos = []
+    if page_data:
+        # Extract creator info from infoComponent.pornstarTop
+        if 'infoComponent' in page_data and 'pornstarTop' in page_data['infoComponent']:
+            pornstar_top = page_data['infoComponent']['pornstarTop']
+            creator = {
+                'name': pornstar_top.get('name'),
+                'avatar': pornstar_top.get('thumbUrl'),
+                'country': pornstar_top.get('country'),
+                'translatedCountryName': pornstar_top.get('translatedCountryName'),
+                'viewsCount': format_views(pornstar_top.get('viewsCount')),
+                'videoCount': pornstar_top.get('videoCount'),
+                'rating': pornstar_top.get('rating'),
+                'subscribers': None
+            }
+            # Get subscribers from subscribeButtonsProps
+            if ('subscribeButtonsProps' in page_data['infoComponent'] and
+                'subscribeButtonProps' in page_data['infoComponent']['subscribeButtonsProps']):
+                creator['subscribers'] = page_data['infoComponent']['subscribeButtonsProps']['subscribeButtonProps'].get('subscribers')
+        
+        # Extract videos using our parse_video_list function
+        videos = parse_video_list(page_data)
+    
+    return {
+        "status": "success",
+        "creator": creator,
+        "videos": videos,
+        "page": page,
+        "used_domain": domain
+    }
+
 def parse_video_list(html_or_soup):
+    """Helper: extract video list from page HTML using embedded JSON data."""
     videos = []
     try:
-        # First, try the JSON method (from app/utils.py)
         page_data = None
-        html = None
         if isinstance(html_or_soup, dict):
+            # If we already have page_data dict, use it directly
             page_data = html_or_soup
         else:
+            # If it's a string or soup object, extract page_data from it
             if isinstance(html_or_soup, str):
                 html = html_or_soup
             else:
                 html = str(html_or_soup)
             page_data = extract_page_data(html)
         
+        # Print search correction info if available
         if page_data:
-            import json
-            logger.info(f"page_data keys: {sorted(page_data.keys())}")
-            logger.info(f"page_data full: {json.dumps(page_data, indent=2, default=str)}")
+            print(f"[DEBUG] page_data keys: {sorted(page_data.keys())}")
             if 'entity' in page_data:
-                logger.info(f"entity: {page_data['entity']}")
+                print(f"[DEBUG] entity: {page_data['entity']}")
             if 'correction' in page_data:
-                logger.info(f"correction: {page_data['correction']}")
+                print(f"[DEBUG] correction: {page_data['correction']}")
         
+        # Check multiple possible paths for videoThumbProps
         video_thumb_props = None
         if page_data:
+            # Path 1: for trending/newest pages
             if ('layoutPage' in page_data and 
                 'videoListProps' in page_data['layoutPage'] and 
                 'videoThumbProps' in page_data['layoutPage']['videoListProps']):
                 video_thumb_props = page_data['layoutPage']['videoListProps']['videoThumbProps']
-                logger.info("Found videos via layoutPage")
+            # Path 2: for search pages
             elif ('searchResult' in page_data and 
                   'videoThumbProps' in page_data['searchResult']):
                 video_thumb_props = page_data['searchResult']['videoThumbProps']
-                logger.info("Found videos via searchResult")
+            # Path 3: for individual video pages (related videos)
             elif ('relatedVideosComponent' in page_data and 
                   'videoTabInitialData' in page_data['relatedVideosComponent'] and
                   'videoListProps' in page_data['relatedVideosComponent']['videoTabInitialData'] and
                   'videoThumbProps' in page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']):
                 video_thumb_props = page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']['videoThumbProps']
-                logger.info("Found videos via relatedVideosComponent")
+            # Path 4: for category pages
             elif ('pagesCategoryComponent' in page_data and 
                   'trendingVideoListProps' in page_data['pagesCategoryComponent'] and
                   'videoThumbProps' in page_data['pagesCategoryComponent']['trendingVideoListProps']):
                 video_thumb_props = page_data['pagesCategoryComponent']['trendingVideoListProps']['videoThumbProps']
-                logger.info("Found videos via pagesCategoryComponent")
+            # Path 5: for creator pages
             else:
+                # Check all possible creator video section keys
                 creator_section_keys = [
                     'newestVideoSectionComponent',
                     'trendingVideoSectionComponent',
@@ -338,10 +349,7 @@ def parse_video_list(html_or_soup):
                         section_data = page_data[key]
                         if 'videoListProps' in section_data and 'videoThumbProps' in section_data['videoListProps']:
                             video_thumb_props = section_data['videoListProps']['videoThumbProps']
-                            logger.info(f"Found videos via {key}")
                             break
-        
-        logger.info(f"Found {len(video_thumb_props) if video_thumb_props else 0} video thumb props via JSON")
         
         if video_thumb_props:
             for item in video_thumb_props:
@@ -365,114 +373,15 @@ def parse_video_list(html_or_soup):
                             'views': views
                         })
                 except Exception as e:
-                    logger.error(f"Error parsing video item: {e}")
                     continue
-        
-        # If JSON method failed (0 videos), try the OLD BeautifulSoup method as FALLBACK
-        if not videos and html:
-            logger.info("JSON method failed, trying BeautifulSoup fallback method")
-            soup = BeautifulSoup(html, 'html.parser')
-            # Find all video thumb elements (old method from original main.py)
-            for thumb in soup.find_all('div', class_=lambda x: x and 'thumb' in x.lower()):
-                try:
-                    # Try to find title and link
-                    a_tag = thumb.find('a')
-                    if a_tag and a_tag.get('href'):
-                        title = a_tag.get('title', '') or a_tag.get_text(strip=True)
-                        link = a_tag.get('href', '')
-                        if not link.startswith('http'):
-                            link = 'https://xhamster.com' + link
-                        
-                        # Try to find image
-                        img_tag = thumb.find('img')
-                        image = ''
-                        if img_tag:
-                            image = img_tag.get('src', '') or img_tag.get('data-src', '')
-                        
-                        # Try to find duration
-                        duration_tag = thumb.find('span', class_=lambda x: x and ('duration' in x.lower() or 'time' in x.lower()))
-                        duration = duration_tag.get_text(strip=True) if duration_tag else ''
-                        
-                        # Try to find views
-                        views_tag = thumb.find('span', class_=lambda x: x and ('view' in x.lower() or 'counter' in x.lower()))
-                        views = views_tag.get_text(strip=True) if views_tag else ''
-                        
-                        if title and link:
-                            videos.append({
-                                'id': link.split('/')[-1] if '/' in link else '',
-                                'title': title,
-                                'link': link,
-                                'image': image,
-                                'duration': duration,
-                                'views': views
-                            })
-                except Exception as e:
-                    logger.error(f"Error in fallback parsing: {e}")
-                    continue
-            
-            logger.info(f"Found {len(videos)} videos via BeautifulSoup fallback")
-    
-    except Exception as e:
-        logger.error(f"Error in parse_video_list: {e}")
-    
-    logger.info(f"Returning {len(videos)} videos total")
+    except Exception:
+        pass
     return videos
 
-# === ENDPOINTS ===
-@app.get("/")
-def home():
-    return {"status": "success", "message": "xHamster Scraper API is running!"}
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-
-# Debug endpoint to see raw HTML (for testing only!)
-@app.get("/api/debug/html")
-async def debug_html(path: str = Query("/", description="Path to fetch, e.g., '/' for trending")):
-    html, domain = await fetch_with_fallback(path)
-    return {
-        "status": "success", 
-        "domain": domain, 
-        "html_length": len(html) if html else 0,
-        "html": html  # Return full HTML
-    }
-
-@app.get("/api/clear-cache")
-def clear_cache_endpoint():
-    cache.clear()
-    return {"status": "success", "message": "Cache cleared successfully!"}
-
-@app.get("/api/trending")
-@cache_response(ttl_seconds=10)
-async def trending_videos(page: int = Query(1, description="Page number")):
-    if page == 1:
-        path = "/"
-    else:
-        path = f"/best/monthly/{page}"
-    response_text, domain = await fetch_with_fallback(path)
-    
-    if not response_text:
-        return {"status": "error", "message": "No working xHamster domain found!"}
-    
-    videos = parse_video_list(response_text)
-    return {"status": "success", "page": page, "results": videos, "used_domain": domain}
-
-@app.get("/api/newest")
-@cache_response(ttl_seconds=10)
-async def newest_videos(page: int = Query(1, description="Page number")):
-    path = f"/newest/{page}"
-    response_text, domain = await fetch_with_fallback(path)
-    
-    if not response_text:
-        return {"status": "error", "message": "No working xHamster domain found!"}
-    
-    videos = parse_video_list(response_text)
-    return {"status": "success", "page": page, "results": videos, "used_domain": domain}
-
 @app.get("/api/search")
-@cache_response(ttl_seconds=3600)
+@cache_response(ttl_seconds=3600)  # Re-enabled
 async def search_videos(q: str = Query(..., description="Search query"), page: int = Query(1, description="Page number")):
+    # Encode spaces in query
     query_encoded = q.replace(" ", "+")
     path = f"/search/{query_encoded}"
     if page > 1:
@@ -481,69 +390,152 @@ async def search_videos(q: str = Query(..., description="Search query"), page: i
     
     if not response_text:
         return {"status": "error", "message": "No working xHamster domain found!"}
-    
-    videos = parse_video_list(response_text)
-    return {"status": "success", "query": q, "page": page, "results": videos, "used_domain": domain}
+        
+    try:
+        videos = parse_video_list(response_text)
+                
+        return {
+            "status": "success",
+            "query": q,
+            "page": page,
+            "results": videos,
+            "used_domain": domain
+        }
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
-@app.get("/api/categories")
-@cache_response(ttl_seconds=86400)
-async def get_categories():
-    response_text, domain = await fetch_with_fallback("/categories")
+@app.get("/api/trending")
+@cache_response(ttl_seconds=10)  # 10-second cache to prevent multi-fetch flickering
+async def trending_videos(page: int = Query(1, description="Page number")):
+    # Fetch the dynamic live feed for page 1, and fall back to monthly best for pagination
+    if page == 1:
+        path = "/"
+    else:
+        path = f"/best/monthly/{page}"
+        
+    response_text, domain = await fetch_with_fallback(path)
     
     if not response_text:
         return {"status": "error", "message": "No working xHamster domain found!"}
     
-    soup = BeautifulSoup(response_text, 'html.parser')
+    try:
+        videos = parse_video_list(response_text)
+        return {"status": "success", "page": page, "results": videos, "used_domain": domain}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/newest")
+@cache_response(ttl_seconds=10)  # 10-second cache to prevent multi-fetch flickering
+async def newest_videos(page: int = Query(1, description="Page number")):
+    path = f"/newest/{page}"
+    response_text, domain = await fetch_with_fallback(path)
     
-    cats = []
-    langs = []
-    seen = set()
+    if not response_text:
+        return {"status": "error", "message": "No working xHamster domain found!"}
     
-    for a in soup.select('a'):
-        href = a.get('href', '')
-        name = a.text.strip() or a.get('title', '').strip()
-        if not name:
-            name = a.get_text(strip=True)
+    try:
+        videos = parse_video_list(response_text)
+        return {"status": "success", "page": page, "results": videos, "used_domain": domain}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/categories")
+@cache_response(ttl_seconds=86400)  # 24 hours
+async def get_categories():
+    path = "/categories"
+    response_text, domain = await fetch_with_fallback(path)
+    
+    if not response_text:
+        return {"status": "error", "message": "No working xHamster domain found!"}
+    
+    try:
+        soup = BeautifulSoup(response_text, 'html.parser')
         
-        if '/categories/' in href and '/photos/' not in href and name:
-            slug = href.rstrip('/').split('/')[-1]
-            
-            image_url = ""
-            img_tag = a.select_one('img')
-            if img_tag:
-                image_url = img_tag.get('src') or img_tag.get('data-src', '')
-            
-            cat_data = {"name": name, "slug": slug, "url": href, "image": image_url}
-            
-            if href not in seen:
-                seen.add(href)
-                if name.lower().startswith('porn in '):
-                    langs.append(cat_data)
+        cats = []
+        langs = []
+        seen = set()
+        
+        for a in soup.select('a'):
+            href = a.get('href', '')
+            name = a.text.strip() or a.get('title', '').strip()
+            if not name:
+                name = a.get_text(strip=True)
+                
+            if '/categories/' in href and '/photos/' not in href and name:
+                slug = href.rstrip('/').split('/')[-1]
+                
+                image_url = ""
+                img_tag = a.select_one('img')
+                if img_tag:
+                    image_url = img_tag.get('src') or img_tag.get('data-src', '')
+                
+                cat_data = {"name": name, "slug": slug, "url": href, "image": image_url}
+                
+                if href not in seen:
+                    seen.add(href)
+                    if name.lower().startswith('porn in '):
+                        langs.append(cat_data)
+                    else:
+                        cats.append(cat_data)
                 else:
-                    cats.append(cat_data)
+                    # Update image if we found a better one later in the page
+                    if image_url:
+                        for cat in cats:
+                            if cat['url'] == href and not cat['image']:
+                                cat['image'] = image_url
+                                break
+                        for cat in langs:
+                            if cat['url'] == href and not cat['image']:
+                                cat['image'] = image_url
+                                break
+
+        # Separate countries and normal categories
+        COUNTRY_SLUGS = {
+            'indian', 'desi', 'russian', 'american', 'british', 'japanese', 'korean', 'chinese', 'german', 'french',
+            'italian', 'spanish', 'brazilian', 'mexican', 'colombian', 'canadian', 'australian', 'filipino', 'thai',
+            'vietnamese', 'indonesian', 'malaysian', 'arab', 'egyptian', 'moroccan', 'turkish', 'iranian', 'pakistani',
+            'bangladeshi', 'sri-lankan', 'nepali', 'south-african', 'nigerian', 'kenyan', 'ukrainian', 'polish', 'czech',
+            'hungarian', 'romanian', 'bulgarian', 'swedish', 'norwegian', 'danish', 'finnish', 'dutch', 'belgian', 'swiss',
+            'austrian', 'greek', 'portuguese', 'argentinian', 'chilean', 'peruvian', 'venezuelan', 'cuban', 'puerto-rican',
+            'dominican', 'jamaican', 'israeli', 'lebanese', 'syrian', 'iraqi', 'afghan', 'uzbek', 'kazakh', 'somali',
+            'ethiopian', 'sudanese', 'ugandan', 'zimbabwean', 'zambian', 'tanzanian', 'ghanaian', 'cameroonian', 'senegalese',
+            'ivorian', 'malian', 'guinean', 'angolan', 'mozambican', 'madagascan', 'rwandan', 'burundian', 'malawian',
+            'botswanan', 'namibian', 'swazi', 'lesotho', 'mauritian', 'seychellois', 'comoran', 'djiboutian', 'eritrean',
+            'south-sudanese', 'central-african', 'chadian', 'nigerien', 'burkinabe', 'togolese', 'beninese', 'liberian',
+            'sierra-leonean', 'gambian', 'bissau-guinean', 'equatorial-guinean', 'gabonese', 'congolese', 'sao-tomean',
+            'cape-verdean', 'saudi', 'emirati', 'qatari', 'kuwaiti', 'bahraini', 'omani', 'yemeni', 'jordanian', 'palestinian',
+            'cypriot', 'maltese', 'georgian', 'armenian', 'azerbaijani', 'turkmen', 'tajik', 'kyrgyz', 'mongolian', 'taiwanese',
+            'singaporean', 'bruneian', 'timorese', 'papuan', 'fijian', 'samoan', 'tongan', 'vanuatuan', 'solomon-islander',
+            'micronesian', 'marshallese', 'palauan', 'nauruan', 'tuvaluan', 'kiribati', 'latvian', 'lithuanian', 'estonian',
+            'belarusian', 'moldovan', 'slovak', 'slovenian', 'croatian', 'bosnian', 'serbian', 'montenegrin', 'macedonian',
+            'albanian', 'kosovar', 'icelandic', 'irish', 'scottish', 'welsh', 'english', 'greenlandic', 'faroese', 'andorran',
+            'monacan', 'sammarinese', 'vatican', 'liechtenstein', 'luxembourgish', 'bahamian', 'belizean', 'costa-rican',
+            'salvadoran', 'guatemalan', 'honduran', 'nicaraguan', 'panamanian', 'antiguan', 'barbadian', 'grenadian', 'haitian',
+            'kittitian', 'lucian', 'vincentian', 'trinidadian', 'surinamese', 'guyanese', 'ecuadorian', 'bolivian', 'paraguayan',
+            'uruguayan', 'asian', 'latina', 'latino', 'euro', 'european', 'arabian', 'african', 'black', 'ebony', 'white'
+        }
+        
+        normal_cats = []
+        country_cats = []
+        for cat in cats:
+            if cat['slug'] in COUNTRY_SLUGS:
+                country_cats.append(cat)
             else:
-                if image_url:
-                    for cat in cats:
-                        if cat['url'] == href and not cat['image']:
-                            cat['image'] = image_url
-                            break
-                    for cat in langs:
-                        if cat['url'] == href and not cat['image']:
-                            cat['image'] = image_url
-                            break
-    
-    normal_cats = []
-    country_cats = []
-    for cat in cats:
-        if cat['slug'] in COUNTRY_SLUGS:
-            country_cats.append(cat)
-        else:
-            normal_cats.append(cat)
-    
-    return {"status": "success", "categories": normal_cats, "countries": country_cats, "languages": langs, "used_domain": domain}
+                normal_cats.append(cat)
+
+        return {
+            "status": "success", 
+            "categories": normal_cats, 
+            "countries": country_cats,
+            "languages": langs,
+            "used_domain": domain
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.get("/api/category/{slug}")
-@cache_response(ttl_seconds=3600)
+@cache_response(ttl_seconds=3600)  # 1 hour
 async def category_videos(slug: str, page: int = Query(1, description="Page number")):
     path = f"/categories/{slug}/{page}"
     response_text, domain = await fetch_with_fallback(path)
@@ -551,158 +543,153 @@ async def category_videos(slug: str, page: int = Query(1, description="Page numb
     if not response_text:
         return {"status": "error", "message": "No working xHamster domain found!"}
     
-    videos = parse_video_list(response_text)
-    return {"status": "success", "category": slug, "page": page, "results": videos, "used_domain": domain}
-
-@app.get("/api/creator/{creator_slug}")
-@cache_response(ttl_seconds=3600)
-async def get_creator_videos(creator_slug: str, page: int = Query(1, description="Page number")):
-    path = f"/creators/{creator_slug}"
-    if page > 1:
-        path += f"/{page}"
-    response_text, domain = await fetch_with_fallback(path)
-    
-    if not response_text:
-        path = f"/users/{creator_slug}"
-        if page > 1:
-            path += f"/{page}"
-        response_text, domain = await fetch_with_fallback(path)
-    
-    if not response_text:
-        return {"status": "error", "message": "Could not fetch creator profile"}
-    
-    page_data = extract_page_data(response_text)
-    creator = None
-    videos = []
-    if page_data:
-        if 'infoComponent' in page_data and 'pornstarTop' in page_data['infoComponent']:
-            pornstar_top = page_data['infoComponent']['pornstarTop']
-            creator = {
-                'name': pornstar_top.get('name'),
-                'avatar': pornstar_top.get('thumbURL'),
-                'country': pornstar_top.get('country'),
-                'translatedCountryName': pornstar_top.get('translatedCountryName'),
-                'viewsCount': format_views(pornstar_top.get('viewsCount', 0)),
-                'videoCount': pornstar_top.get('videoCount'),
-                'rating': pornstar_top.get('rating'),
-                'subscribers': None
-            }
-            if ('subscribeButtonsProps' in page_data['infoComponent'] and
-                'subscribeButtonProps' in page_data['infoComponent']['subscribeButtonsProps']):
-                creator['subscribers'] = page_data['infoComponent']['subscribeButtonsProps']['subscribeButtonProps'].get('subscribers')
-        
-        videos = parse_video_list(page_data)
-    
-    return {"status": "success", "creator": creator, "videos": videos, "page": page, "used_domain": domain}
+    try:
+        videos = parse_video_list(response_text)
+        return {"status": "success", "category": slug, "page": page, "results": videos, "used_domain": domain}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.get("/api/video")
-@cache_response(ttl_seconds=600)
+@cache_response(ttl_seconds=600)  # 10 mins
 async def get_video_stream(url: str = Query(..., description="Full xHamster video URL")):
-    response = await http_client.get(url, headers=HEADERS)
-    response.raise_for_status()
-    
-    html = response.text
-    soup = BeautifulSoup(html, 'html.parser')
-    
-    page_data = extract_page_data(html)
-    
-    title_tag = soup.select_one('h1.with-player-container')
-    if not title_tag:
-        title_tag = soup.select_one('h1')
-    video_title = title_tag.text.strip() if title_tag else 'Untitled Video'
-    
-    views = None
-    uploader = None
-    if page_data:
-        for view_key in ['videoModel', 'videoEntity', 'videoHeadingComponent', 'videoTitle']:
-            if view_key in page_data and 'views' in page_data[view_key]:
-                views_raw = page_data[view_key]['views']
-                views = format_views(views_raw)
-                break
-        
-        if 'videoModel' in page_data and 'author' in page_data['videoModel']:
-            author = page_data['videoModel']['author']
-            landing = page_data['videoModel'].get('landing', {}) if 'landing' in page_data['videoModel'] else {}
-            uploader = {
-                'name': landing.get('name') or author.get('name'),
-                'username': author.get('name'),
-                'avatar': landing.get('logo') or '',
-                'profile_url': landing.get('link') or author.get('pageURL')
-            }
-    
-    related = parse_video_list(html)
-    
-    m3u8_pattern = r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*'
-    mp4_pattern = r'https?://[^\s"\'<>]+\.mp4[^\s"\'<>]*'
-    
-    m3u8_links = list(set(re.findall(m3u8_pattern, html)))
-    all_mp4_links = list(set(re.findall(mp4_pattern, html)))
-    
-    mp4_links = [u for u in all_mp4_links if '.m3u8' not in u and 'thumb' not in u]
-    quality_mp4s = [u for u in mp4_links if any(q in u for q in ['1080p', '720p', '480p', '240p'])]
-    
-    direct_url = None
-    if quality_mp4s:
-        for q in ['1080p', '720p', '480p', '240p']:
-            match = [u for u in quality_mp4s if q in u]
-            if match:
-                direct_url = match[0]
-                break
-    elif mp4_links:
-        direct_url = mp4_links[0]
-    
-    proxy_url = None
-    if direct_url:
-        proxy_url = f"/api/proxy?url={quote(direct_url, safe='')}"
-    
-    hls_proxy_url = None
-    if m3u8_links:
-        hls_proxy_url = f"/api/hls-proxy?url={quote(m3u8_links[0], safe='')}"
-    
-    parsed_original = urlparse(url)
-    original_domain = parsed_original.netloc
-    
-    return {
-        "status": "success",
-        "title": video_title,
-        "views": views,
-        "uploader": uploader,
-        "direct_url": direct_url,
-        "proxy_url": proxy_url,
-        "hls_proxy_url": hls_proxy_url,
-        "related": related,
-        "streams": {
-            "m3u8": m3u8_links,
-            "mp4": mp4_links
-        },
-        "original_url": url,
-        "original_domain": original_domain
-    }
-
-@app.get("/api/proxy", response_model=None)
-async def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"), request: Request = None):
     try:
+        response = await http_client.get(url, headers=HEADERS)
+        response.raise_for_status()
+        
+        html = response.text
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Extract page data (embedded JSON) for views, author, etc.
+        page_data = extract_page_data(html)
+        
+        # Extract video title
+        title_tag = soup.select_one('h1.with-player-container')
+        if not title_tag:
+            title_tag = soup.select_one('h1')
+        video_title = title_tag.text.strip() if title_tag else 'Untitled Video'
+        
+        # Extract views and author/uploader from page data
+        views = None
+        uploader = None
+        if page_data:
+            # Extract views
+            for view_key in ['videoModel', 'videoEntity', 'videoHeadingComponent', 'videoTitle']:
+                if view_key in page_data and 'views' in page_data[view_key]:
+                    views_raw = page_data[view_key]['views']
+                    views = format_views(views_raw)
+                    break
+            
+            # Extract author/uploader
+            if 'videoModel' in page_data and 'author' in page_data['videoModel']:
+                author = page_data['videoModel']['author']
+                # Also check 'landing' for better name/avatar
+                landing = page_data['videoModel'].get('landing', {}) if 'landing' in page_data['videoModel'] else {}
+                uploader = {
+                    'name': landing.get('name') or author.get('name'),
+                    'username': author.get('name'),
+                    'avatar': landing.get('logo') or '',
+                    'profile_url': landing.get('link') or author.get('pageURL')
+                }
+        
+        # Extract related videos (pass html)
+        related = parse_video_list(html)
+        
+        # Use regex to find direct MP4 and M3U8 streaming links in the HTML
+        m3u8_pattern = r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*'
+        mp4_pattern = r'https?://[^\s"\'<>]+\.mp4[^\s"\'<>]*'
+        
+        m3u8_links = list(set(re.findall(m3u8_pattern, html)))
+        all_mp4_links = list(set(re.findall(mp4_pattern, html)))
+        
+        # Filter out fake mp4s: exclude m3u8 disguised as mp4, and thumbnail previews
+        mp4_links = [u for u in all_mp4_links if '.m3u8' not in u and 'thumb' not in u]
+        
+        # Pick the best quality direct URL (prefer ones with resolution like 480p, 720p)
+        quality_mp4s = [u for u in mp4_links if any(q in u for q in ['1080p', '720p', '480p', '240p'])]
+        
+        if quality_mp4s:
+            # Prefer highest quality
+            for q in ['1080p', '720p', '480p', '240p']:
+                match = [u for u in quality_mp4s if q in u]
+                if match:
+                    direct_url = match[0]
+                    break
+        elif mp4_links:
+            direct_url = mp4_links[0]
+        else:
+            direct_url = None
+        
+        proxy_url = None
+        if direct_url:
+            from urllib.parse import quote
+            proxy_url = f"/api/proxy?url={quote(direct_url, safe='')}"
+        
+        # HLS proxy URL for multi-quality streaming
+        hls_proxy_url = None
+        if m3u8_links:
+            from urllib.parse import quote
+            hls_proxy_url = f"/api/hls-proxy?url={quote(m3u8_links[0], safe='')}"
+        
+        # Extract referer/origin domain from original url
+        from urllib.parse import urlparse
+        parsed_original = urlparse(url)
+        original_domain = parsed_original.netloc
+        
+        return {
+            "status": "success",
+            "title": video_title,
+            "views": views,
+            "uploader": uploader,
+            "direct_url": direct_url,
+            "proxy_url": proxy_url,
+            "hls_proxy_url": hls_proxy_url,
+            "related": related,
+            "streams": {
+                "m3u8": m3u8_links,
+                "mp4": mp4_links
+            },
+            "original_url": url,
+            "original_domain": original_domain
+        }
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/proxy")
+async def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"), request: Request = None):
+    """Proxy the video stream with correct Referer header to bypass CDN 403 blocks."""
+    try:
+        # Find the appropriate xHamster domain for referer
+        from urllib.parse import urlparse
         referer_domain = 'xhamster.desi'
-        for domain in settings.xhamster_domains:
+        for domain in XHAMSTER_DOMAINS:
             if domain in url:
                 referer_domain = domain
                 break
                 
-        proxy_headers = {**HEADERS, 'Referer': f'https://{referer_domain}/', 'Origin': f'https://{referer_domain}'}
+        proxy_headers = {
+            **HEADERS,
+            'Referer': f'https://{referer_domain}/',
+            'Origin': f'https://{referer_domain}',
+        }
         
+        # Copy range headers if present
         if request and 'range' in request.headers:
             proxy_headers['Range'] = request.headers['range']
         
+        # Get the stream
         response_context = http_client.stream('GET', url, headers=proxy_headers)
         r = await response_context.__aenter__()
         r.raise_for_status()
         
+        # Build response headers
         response_headers = {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, OPTIONS',
             'Access-Control-Allow-Headers': '*',
         }
         
+        # Copy important headers
         for header in ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'Cache-Control']:
             if header in r.headers:
                 response_headers[header] = r.headers[header]
@@ -724,30 +711,41 @@ async def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to 
         logger.error(f"Proxy error: {e}")
         return {"status": "error", "message": str(e)}
 
-@app.get("/api/hls-proxy", response_model=None)
+@app.get("/api/hls-proxy")
 async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewriting"), request: Request = None):
+    """Proxy M3U8 playlists and rewrite internal URLs to also go through our proxy."""
     try:
+        # Find the appropriate xHamster domain for referer
         referer_domain = 'xhamster.desi'
-        for domain in settings.xhamster_domains:
+        for domain in XHAMSTER_DOMAINS:
             if domain in url:
                 referer_domain = domain
                 break
                 
-        proxy_headers = {**HEADERS, 'Referer': f'https://{referer_domain}/', 'Origin': f'https://{referer_domain}'}
+        proxy_headers = {
+            **HEADERS,
+            'Referer': f'https://{referer_domain}/',
+            'Origin': f'https://{referer_domain}',
+        }
         
+        # First check if it's an M3U8 playlist by reading the content
         response = await http_client.get(url, headers=proxy_headers)
         response.raise_for_status()
         
         content = response.text
         content_type = response.headers.get('Content-Type', 'application/vnd.apple.mpegurl')
         
+        # Check if this is an M3U8 playlist
         if '.m3u8' in url or 'mpegurl' in content_type.lower() or content.strip().startswith('#EXTM3U'):
+            # Get the base URL for resolving relative paths
             base_url = url.rsplit('/', 1)[0] + '/'
-            rewritten_lines = []
+            from urllib.parse import quote
             
+            rewritten_lines = []
             for line in content.splitlines():
                 line = line.strip()
                 if not line or line.startswith('#'):
+                    # For EXT-X-MAP or similar tags that contain URIs
                     if 'URI="' in line:
                         uri_match = re.search(r'URI="([^"]+)"', line)
                         if uri_match:
@@ -755,34 +753,38 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
                             if not orig_uri.startswith('http'):
                                 orig_uri = base_url + orig_uri
                             proxied = f"/api/hls-proxy?url={quote(orig_uri, safe='')}"
+                            # Use the request's host instead of hardcoded localhost:8000
                             if request:
                                 scheme = request.url.scheme
-                                host = request.headers.get('host', 'localhost:7860')
+                                host = request.headers.get('host', 'localhost:8000')
                                 line = line.replace(uri_match.group(0), f'URI="{scheme}://{host}{proxied}"')
                             else:
-                                line = line.replace(uri_match.group(0), f'URI="http://localhost:7860{proxied}"')
+                                line = line.replace(uri_match.group(0), f'URI="http://localhost:8000{proxied}"')
                     rewritten_lines.append(line)
                 else:
+                    # This is a URL line (segment or sub-playlist)
                     segment_url = line
                     if not segment_url.startswith('http'):
                         segment_url = base_url + segment_url
                     
+                    # Sub-playlists (.m3u8) go through hls-proxy, segments through regular proxy
                     if '.m3u8' in segment_url:
                         if request:
                             scheme = request.url.scheme
-                            host = request.headers.get('host', 'localhost:7860')
+                            host = request.headers.get('host', 'localhost:8000')
                             proxied = f"{scheme}://{host}/api/hls-proxy?url={quote(segment_url, safe='')}"
                         else:
-                            proxied = f"http://localhost:7860/api/hls-proxy?url={quote(segment_url, safe='')}"
+                            proxied = f"http://localhost:8000/api/hls-proxy?url={quote(segment_url, safe='')}"
                     else:
                         if request:
                             scheme = request.url.scheme
-                            host = request.headers.get('host', 'localhost:7860')
+                            host = request.headers.get('host', 'localhost:8000')
                             proxied = f"{scheme}://{host}/api/proxy?url={quote(segment_url, safe='')}"
                         else:
-                            proxied = f"http://localhost:7860/api/proxy?url={quote(segment_url, safe='')}"
+                            proxied = f"http://localhost:8000/api/proxy?url={quote(segment_url, safe='')}"
                     rewritten_lines.append(proxied)
             
+            from fastapi.responses import Response
             return Response(
                 content='\n'.join(rewritten_lines),
                 media_type='application/vnd.apple.mpegurl',
@@ -793,6 +795,7 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
                 }
             )
         else:
+            # Not an M3U8 - stream it
             response_context = http_client.stream('GET', url, headers=proxy_headers)
             r_stream = await response_context.__aenter__()
             r_stream.raise_for_status()
@@ -823,5 +826,4 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
         return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=7860, reload=True)
-
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
