@@ -264,14 +264,18 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
             response.raise_for_status()
             
             # Log whether we got real content or a bot-detection page
-            has_video_data = 'videoThumbProps' in response.text or 'videoListProps' in response.text
-            logger.info(f"Success with domain: {domain}, has_video_data: {has_video_data}")
+            if path == '/categories':
+                has_real_data = '/categories/' in response.text
+            else:
+                has_real_data = 'videoThumbProps' in response.text or 'videoListProps' in response.text
+                
+            logger.info(f"Success with domain: {domain}, has_real_data: {has_real_data}")
             logger.info(f"Final URL (after redirects): {response.url}")
             
-            if has_video_data:
+            if has_real_data:
                 return response.text, domain
             else:
-                logger.warning(f"Domain {domain} returned HTML without video data (possible bot detection), trying next...")
+                logger.warning(f"Domain {domain} returned HTML without expected content (possible bot detection), trying next...")
                 continue
                 
         except Exception as e:
