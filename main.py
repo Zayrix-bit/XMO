@@ -11,6 +11,8 @@ import functools
 from fastapi import Request
 import asyncio
 import logging
+import os
+import random
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -85,24 +87,35 @@ from contextlib import asynccontextmanager
 # Global async HTTP client with connection pooling
 http_client = None
 
+async def get_http_client():
+    """Lazy initialization of HTTP client — works in both lifespan and serverless contexts."""
+    global http_client
+    if http_client is None:
+        http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0),
+            follow_redirects=True,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+        )
+        logger.info("HTTP client lazily initialized")
+    return http_client
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global http_client
-    http_client = httpx.AsyncClient(
-        timeout=httpx.Timeout(15.0),
-        follow_redirects=True,
-        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100)
-    )
-    logger.info("HTTP client initialized")
+    # Pre-initialize the client at startup if possible
+    await get_http_client()
+    logger.info("HTTP client initialized via lifespan")
     yield
+    global http_client
     if http_client:
         await http_client.aclose()
+        http_client = None
         logger.info("HTTP client closed")
 
 app = FastAPI(lifespan=lifespan)
 
-# Initialize persistent disk cache
-cache = diskcache.Cache('.cache')
+# Initialize persistent disk cache — use /tmp on cloud platforms (read-only filesystem)
+_cache_dir = '/tmp/.cache' if os.environ.get('SPACE_ID') or os.environ.get('VERCEL') else '.cache'
+cache = diskcache.Cache(_cache_dir)
 
 def cache_response(ttl_seconds: int):
     """Decorator to cache FastAPI endpoint responses using diskcache."""
@@ -165,17 +178,48 @@ XHAMSTER_DOMAINS = [
     'xhamster10.com',
 ]
 
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Referer': 'https://xhamster.com/',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'same-origin',
-    'Cache-Control': 'max-age=0',
-    'Upgrade-Insecure-Requests': '1'
-}
+# Rotating User-Agents to reduce bot detection
+_USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15',
+]
+
+def get_headers(domain: str = 'xhamster.com'):
+    """Get request headers with a random User-Agent and matching Client Hints for anti-bot evasion."""
+    ua = random.choice(_USER_AGENTS)
+    headers = {
+        'User-Agent': ua,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Referer': f'https://{domain}/',
+        'Upgrade-Insecure-Requests': '1',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+    }
+    
+    # Add client hints only for Chrome/Chromium user agents to avoid detection
+    if 'Chrome' in ua:
+        headers['Sec-Ch-Ua'] = '"Chromium";v="131", "Not_A Brand";v="24", "Google Chrome";v="131"'
+        headers['Sec-Ch-Ua-Mobile'] = '?0'
+        if 'Windows' in ua:
+            headers['Sec-Ch-Ua-Platform'] = '"Windows"'
+        elif 'Macintosh' in ua:
+            headers['Sec-Ch-Ua-Platform'] = '"macOS"'
+        else:
+            headers['Sec-Ch-Ua-Platform'] = '"Linux"'
+            
+    return headers
+
+# Keep a static reference for backward compatibility (but we should prefer get_headers())
+HEADERS = get_headers()
 
 
 async def fetch_with_fallback(path: str, use_https: bool = True):
@@ -185,20 +229,20 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
     :param use_https: Whether to use https
     :return: (response_text, working_domain)
     """
+    client = await get_http_client()
     protocol = 'https' if use_https else 'http'
     for domain in XHAMSTER_DOMAINS:
         try:
             url = f"{protocol}://{domain}{path}"
+            headers = get_headers(domain)
             logger.info(f"Trying domain: {url}")
-            response = await http_client.get(url, headers=HEADERS)
-            logger.info(f"Initial response status code: {response.status_code}")
+            response = await client.get(url, headers=headers)
+            logger.info(f"Initial response status code: {response.status_code}, HTML length: {len(response.text)}")
             
             # Check if this is the anti-bot redirect page
             if response.status_code == 200 and 'REDIRECT_URL' in response.text:
                 logger.info("Found anti-bot page, following redirect...")
                 soup = BeautifulSoup(response.text, 'html.parser')
-                # Find the redirect URL from the script tag
-                import re
                 redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
                 if redirect_url_match:
                     redirect_url = redirect_url_match.group(1)
@@ -214,17 +258,30 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
                     final_url = redirect_url + f"fp={fp}"
                     logger.info(f"Following redirect to: {final_url}")
                     # Now fetch the actual page
-                    response = await http_client.get(final_url, headers=HEADERS)
-                    logger.info(f"Final response status code: {response.status_code}")
+                    response = await client.get(final_url, headers=headers)
+                    logger.info(f"Final response status code: {response.status_code}, HTML length: {len(response.text)}")
             
             response.raise_for_status()
-            logger.info(f"Success with domain: {domain}")
+            
+            # Log whether we got real content or a bot-detection page
+            has_video_data = 'videoThumbProps' in response.text or 'videoListProps' in response.text
+            logger.info(f"Success with domain: {domain}, has_video_data: {has_video_data}")
             logger.info(f"Final URL (after redirects): {response.url}")
-            return response.text, domain
+            
+            if has_video_data:
+                return response.text, domain
+            else:
+                logger.warning(f"Domain {domain} returned HTML without video data (possible bot detection), trying next...")
+                continue
+                
         except Exception as e:
             logger.error(f"Failed with domain {domain}: {str(e)}")
             continue
+    
+    # If no domain returned video data, return the last successful response anyway
+    logger.warning("No domain returned video data, returning None")
     return None, None
+
 
 @app.get("/")
 def home():
@@ -568,7 +625,12 @@ async def category_videos(slug: str, page: int = Query(1, description="Page numb
 @cache_response(ttl_seconds=600)  # 10 mins
 async def get_video_stream(url: str = Query(..., description="Full xHamster video URL")):
     try:
-        response = await http_client.get(url, headers=HEADERS)
+        client = await get_http_client()
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc or 'xhamster.com'
+        headers = get_headers(domain)
+        response = await client.get(url, headers=headers)
         response.raise_for_status()
         
         html = response.text
@@ -682,18 +744,16 @@ async def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to 
                 referer_domain = domain
                 break
                 
-        proxy_headers = {
-            **HEADERS,
-            'Referer': f'https://{referer_domain}/',
-            'Origin': f'https://{referer_domain}',
-        }
+        proxy_headers = get_headers(referer_domain)
+        proxy_headers['Origin'] = f'https://{referer_domain}'
         
         # Copy range headers if present
         if request and 'range' in request.headers:
             proxy_headers['Range'] = request.headers['range']
         
         # Get the stream
-        response_context = http_client.stream('GET', url, headers=proxy_headers)
+        client = await get_http_client()
+        response_context = client.stream('GET', url, headers=proxy_headers)
         r = await response_context.__aenter__()
         r.raise_for_status()
         
@@ -737,14 +797,12 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
                 referer_domain = domain
                 break
                 
-        proxy_headers = {
-            **HEADERS,
-            'Referer': f'https://{referer_domain}/',
-            'Origin': f'https://{referer_domain}',
-        }
+        proxy_headers = get_headers(referer_domain)
+        proxy_headers['Origin'] = f'https://{referer_domain}'
         
         # First check if it's an M3U8 playlist by reading the content
-        response = await http_client.get(url, headers=proxy_headers)
+        client = await get_http_client()
+        response = await client.get(url, headers=proxy_headers)
         response.raise_for_status()
         
         content = response.text
@@ -811,7 +869,7 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
             )
         else:
             # Not an M3U8 - stream it
-            response_context = http_client.stream('GET', url, headers=proxy_headers)
+            response_context = client.stream('GET', url, headers=proxy_headers)
             r_stream = await response_context.__aenter__()
             r_stream.raise_for_status()
                 
