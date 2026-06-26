@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Query
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import httpx
@@ -13,9 +14,104 @@ import asyncio
 import logging
 import os
 import random
+try:
+    from httpx_socks import AsyncProxyTransport  # Add proxy support
+    PROXY_TRANSPORT_AVAILABLE = True
+except ImportError:
+    PROXY_TRANSPORT_AVAILABLE = False
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+# Advanced Anti-Detection: More realistic User Agents
+_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0",
+]
+
+# All xHamster domains to try
+XHAMSTER_DOMAINS = [
+    'xhamster.desi',  # Prioritize desi first
+    'xhamster.com',
+    'xhamster2.com',
+    'xhamster3.com',
+    'xhamster4.com',
+    'xhamster5.com',
+    'xhamster6.com',
+    'xhamster7.com',
+    'xhamster8.com',
+    'xhamster9.com',
+    'xhamster10.com',
+]
+
+# Cookie jar for persistence
+_cookie_jar = httpx.Cookies()
+_session = None
+
+def get_headers(domain: str = 'xhamster.desi'):
+    """Get SUPER realistic browser headers!"""
+    ua = random.choice(_USER_AGENTS)
+    headers = {
+        "User-Agent": ua,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": f"https://{domain}/",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Cache-Control": "max-age=0",
+        "Priority": "u=0, i",
+    }
+    
+    if "Chrome" in ua or "Edg" in ua:
+        headers.update({
+            "Sec-Ch-Ua": '"Chromium";v="133", "Not_A Brand";v="24", "Google Chrome";v="133"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Arch": '"x86"',
+            "Sec-Ch-Ua-Bitness": '"64"',
+            "Sec-Ch-Ua-Full-Version": '"133.0.0.0"',
+            "Sec-Ch-Ua-Full-Version-List": '"Chromium";v="133.0.0.0", "Not_A Brand";v="24.0.0.0", "Google Chrome";v="133.0.0.0"',
+            "Sec-Ch-Ua-Model": '""',
+            "Sec-Ch-Ua-Platform": '"Windows"',
+            "Sec-Ch-Ua-Platform-Version": '"15.0.0"',
+            "Sec-Ch-Ua-Wow64": "?0",
+        })
+    return headers
+
+async def get_client():
+    """Create a persistent HTTP client with proper settings"""
+    global _session
+    if _session is None:
+        # Configure httpx for maximum realism
+        limits = httpx.Limits(max_keepalive_connections=10, max_connections=20)
+        timeout = httpx.Timeout(60.0, connect=10.0)
+        
+        # Add proxy from env if available
+        proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+        
+        client_kwargs = {
+            "timeout": timeout,
+            "follow_redirects": True,
+            "limits": limits,
+            "cookies": _cookie_jar,
+            "http2": True,  # HTTP/2 is crucial for anti-detection
+            "verify": True,  # Verify SSL certificates like real browser
+        }
+        if proxy:
+            client_kwargs["proxy"] = proxy  # httpx uses 'proxy' (singular), not 'proxies'
+        _session = httpx.AsyncClient(**client_kwargs)
+        logger.info("Persistent HTTP client initialized")
+    return _session
+
 def extract_page_data(html):
     """Extract page data from HTML by finding the largest JSON object in script tags"""
     soup = BeautifulSoup(html, 'html.parser')
@@ -31,12 +127,10 @@ def extract_page_data(html):
                 content = script.string
                 start_idx = 0
                 while True:
-                    # Find the first opening brace
                     start_brace = content.find('{', start_idx)
                     if start_brace == -1:
                         break
                     
-                    # Find matching closing brace
                     brace_count = 1
                     end_brace = start_brace + 1
                     while end_brace < len(content) and brace_count > 0:
@@ -71,7 +165,6 @@ def extract_page_data(html):
     return largest_data
 
 def format_duration(seconds):
-    """Convert seconds to MM:SS or HH:MM:SS"""
     seconds = int(seconds)
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
@@ -81,9 +174,7 @@ def format_duration(seconds):
     else:
         return f"{minutes:02d}:{secs:02d}"
 
-
 def format_views(views):
-    """Format view count (e.g., 1234 → 1.2K, 1234567 → 1.2M)"""
     if views >= 1000000:
         return f"{views / 1000000:.1f}M"
     elif views >= 1000:
@@ -91,44 +182,32 @@ def format_views(views):
     else:
         return str(views)
 
-from contextlib import asynccontextmanager
-
-# Global async HTTP client with connection pooling
-http_client = None
-
-async def get_http_client():
-    """Lazy initialization of HTTP client — works in both lifespan and serverless contexts."""
-    global http_client
-    if http_client is None:
-        http_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(60.0),  # Increased timeout
-            follow_redirects=True,
-            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
-            http2=True,  # Enable HTTP/2
-        )
-        logger.info("HTTP client lazily initialized")
-    return http_client
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Pre-initialize the client at startup if possible
-    await get_http_client()
-    logger.info("HTTP client initialized via lifespan")
+    await get_client()
+    logger.info("Application startup complete")
     yield
-    global http_client
-    if http_client:
-        await http_client.aclose()
-        http_client = None
+    global _session
+    if _session:
+        await _session.aclose()
+        _session = None
         logger.info("HTTP client closed")
 
 app = FastAPI(lifespan=lifespan)
 
-# Initialize persistent disk cache — use /tmp on cloud platforms (read-only filesystem)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize disk cache
 _cache_dir = '/tmp/.cache' if os.environ.get('SPACE_ID') or os.environ.get('VERCEL') else '.cache'
 cache = diskcache.Cache(_cache_dir)
 
 def cache_response(ttl_seconds: int):
-    """Decorator to cache FastAPI endpoint responses using diskcache."""
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -154,187 +233,214 @@ def cache_response(ttl_seconds: int):
             return result
         return wrapper
     return decorator
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Explicit OPTIONS handler for CORS preflight
-@app.options("/api/{path:path}")
-async def options_handler():
-    return {
-        "status": "ok",
-        "headers": {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        }
-    }
-
-XHAMSTER_DOMAINS = [
-    'xhamster.com',
-    'xhamster.desi',
-    'xhamster2.com',
-    'xhamster3.com',
-    'xhamster4.com',
-    'xhamster5.com',
-    'xhamster6.com',
-    'xhamster7.com',
-    'xhamster8.com',
-    'xhamster9.com',
-    'xhamster10.com',
-    'xhamster11.com',
-    'xhamster12.com',
-    'xhamster13.com',
-    'xhamster14.com',
-    'xhamster15.com',
-    'xhamster16.com',
-    'xhamster17.com',
-    'xhamster18.com',
-    'xhamster19.com',
-    'xhamster20.com',
-]
-
-# Rotating User-Agents to reduce bot detection
-_USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
-]
-
-def get_headers(domain: str = 'xhamster.com'):
-    """Get request headers with a random User-Agent and matching Client Hints for anti-bot evasion."""
-    ua = random.choice(_USER_AGENTS)
-    headers = {
-        'User-Agent': ua,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Referer': f'https://{domain}/',
-        'Upgrade-Insecure-Requests': '1',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Cache-Control': 'max-age=0',
-        'Priority': 'u=0, i',
-    }
-    
-    # Add client hints only for Chrome/Chromium user agents to avoid detection
-    if 'Chrome' in ua:
-        headers['Sec-Ch-Ua'] = '"Chromium";v="131", "Not_A Brand";v="24", "Google Chrome";v="131"'
-        headers['Sec-Ch-Ua-Mobile'] = '?0'
-        headers['Sec-Ch-Ua-Arch'] = '"x86"'
-        headers['Sec-Ch-Ua-Bitness'] = '"64"'
-        headers['Sec-Ch-Ua-Full-Version'] = '"131.0.0.0"'
-        headers['Sec-Ch-Ua-Full-Version-List'] = '"Chromium";v="131.0.0.0", "Not_A Brand";v="24.0.0.0", "Google Chrome";v="131.0.0.0"'
-        headers['Sec-Ch-Ua-Model'] = '""'
-        headers['Sec-Ch-Ua-Platform'] = '"Windows"'
-        headers['Sec-Ch-Ua-Platform-Version'] = '"15.0.0"'
-        headers['Sec-Ch-Ua-Wow64'] = '?0'
-            
-    return headers
-
-# Keep a static reference for backward compatibility (but we should prefer get_headers())
-HEADERS = get_headers()
-
 
 async def fetch_with_fallback(path: str, use_https: bool = True):
-    """
-    Try fetching from all xHamster domains until one works.
-    :param path: Path part of URL (e.g., "/newest/2", "/search/video?q=milf")
-    :param use_https: Whether to use https
-    :return: (response_text, working_domain)
-    """
-    client = await get_http_client()
+    """Advanced fetch with anti-bot measures"""
+    client = await get_client()
     protocol = 'https' if use_https else 'http'
     
-    # Try domains in original order first, then shuffled
-    for domain_list in [XHAMSTER_DOMAINS.copy(), XHAMSTER_DOMAINS.copy()]:
-        if domain_list is XHAMSTER_DOMAINS:
-            random.shuffle(domain_list)
-            
-        for domain in domain_list:
-            try:
-                url = f"{protocol}://{domain}{path}"
-                headers = get_headers(domain)
-                
-                # Add small random delay to avoid rate limiting
-                await asyncio.sleep(random.uniform(0.1, 0.5))
-                
-                logger.info(f"Trying domain: {url}")
-                response = await client.get(url, headers=headers, follow_redirects=True)
-                logger.info(f"Initial response status code: {response.status_code}, HTML length: {len(response.text)}")
-                logger.info(f"Response headers: {dict(response.headers)}")
-                
-                # Log first 500 characters of HTML for debugging
-                logger.debug(f"First 500 chars of HTML: {response.text[:500]}")
-                
-                # Check if this is the anti-bot redirect page
-                if response.status_code == 200 and 'REDIRECT_URL' in response.text:
-                    logger.info("Found anti-bot page, following redirect...")
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
-                    if redirect_url_match:
-                        redirect_url = redirect_url_match.group(1)
-                        # Let's use the fp parameter from the noscript link
-                        noscript_link = soup.find('noscript')
-                        fp = '-5'  # default
-                        if noscript_link and noscript_link.find('a'):
-                            fp_url = noscript_link.find('a')['href']
-                            fp_match = re.search(r'fp=([^&]+)', fp_url)
-                            if fp_match:
-                                fp = fp_match.group(1)
-                        # Build the final URL
-                        final_url = redirect_url + f"fp={fp}"
-                        logger.info(f"Following redirect to: {final_url}")
-                        # Add another small delay before following redirect
-                        await asyncio.sleep(random.uniform(0.1, 0.3))
-                        # Now fetch the actual page
-                        response = await client.get(final_url, headers=headers, follow_redirects=True)
-                        logger.info(f"Final response status code: {response.status_code}, HTML length: {len(response.text)}")
-                        logger.debug(f"First 500 chars after redirect: {response.text[:500]}")
-                
-                response.raise_for_status()
-                
-                # Log whether we got real content or a bot-detection page
-                if path == '/categories':
-                    has_real_data = '/categories/' in response.text
-                else:
-                    has_real_data = 'videoThumbProps' in response.text or 'videoListProps' in response.text
-                    
-                logger.info(f"Success with domain: {domain}, has_real_data: {has_real_data}")
-                logger.info(f"Final URL (after redirects): {response.url}")
-                
-                if has_real_data:
-                    return response.text, domain
-                else:
-                    logger.warning(f"Domain {domain} returned HTML without expected content (possible bot detection), trying next...")
-                    continue
-                    
-            except Exception as e:
-                logger.error(f"Failed with domain {domain}: {str(e)}", exc_info=True)
-                continue
+    # Prioritize desi domains
+    all_domains = XHAMSTER_DOMAINS.copy()
+    random.shuffle(all_domains)
     
-    # If no domain returned video data, return the last successful response anyway
-    logger.warning("No domain returned video data, returning None")
+    for domain in all_domains:
+        try:
+            url = f"{protocol}://{domain}{path}"
+            headers = get_headers(domain)
+            
+            # Add realistic delay
+            await asyncio.sleep(random.uniform(0.5, 2.0))
+            
+            logger.info(f"Trying domain: {url}")
+            
+            response = await client.get(url, headers=headers)
+            logger.info(f"Initial response status code: {response.status_code}, HTML length: {len(response.text)}")
+            
+            # Save cookies
+            _cookie_jar.update(response.cookies)
+            
+            # Check for anti-bot redirect
+            if response.status_code == 200 and 'REDIRECT_URL' in response.text:
+                logger.info("Found anti-bot page, handling...")
+                soup = BeautifulSoup(response.text, 'html.parser')
+                redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
+                if redirect_url_match:
+                    redirect_url = redirect_url_match.group(1)
+                    noscript_link = soup.find('noscript')
+                    fp = '-5'
+                    if noscript_link and noscript_link.find('a'):
+                        fp_url = noscript_link.find('a')['href']
+                        fp_match = re.search(r'fp=([^&]+)', fp_url)
+                        if fp_match:
+                            fp = fp_match.group(1)
+                    final_url = redirect_url + f"fp={fp}"
+                    logger.info(f"Following redirect to: {final_url}")
+                    await asyncio.sleep(random.uniform(0.5, 1.5))
+                    response = await client.get(final_url, headers=headers)
+                    logger.info(f"Final response status code: {response.status_code}, HTML length: {len(response.text)}")
+                    _cookie_jar.update(response.cookies)
+            
+            response.raise_for_status()
+            
+            # Check for real content
+            page_data = extract_page_data(response.text)
+            has_real_data = False
+            if page_data:
+                video_thumb_props = None
+                
+                # Check all known paths
+                paths_to_check = [
+                    ('layoutPage', 'videoListProps', 'videoThumbProps'),
+                    ('searchResult', 'videoThumbProps'),
+                    ('pagesCategoryComponent', 'trendingVideoListProps', 'videoThumbProps'),
+                    ('relatedVideosComponent', 'videoTabInitialData', 'videoListProps', 'videoThumbProps'),
+                ]
+                
+                for path_keys in paths_to_check:
+                    current = page_data
+                    valid = True
+                    for key in path_keys:
+                        if isinstance(current, dict) and key in current:
+                            current = current[key]
+                        else:
+                            valid = False
+                            break
+                    if valid and isinstance(current, list):
+                        video_thumb_props = current
+                        logger.info(f"Found videos at path: {path_keys}")
+                        break
+                
+                # If not found, try recursive search
+                if not video_thumb_props:
+                    def find_vtp(obj):
+                        if isinstance(obj, dict):
+                            for key, value in obj.items():
+                                if key == 'videoThumbProps' and isinstance(value, list):
+                                    return value
+                                result = find_vtp(value)
+                                if result:
+                                    return result
+                        elif isinstance(obj, list):
+                            for item in obj:
+                                result = find_vtp(item)
+                                if result:
+                                    return result
+                        return None
+                    video_thumb_props = find_vtp(page_data)
+                
+                if video_thumb_props:
+                    logger.info(f"Found {len(video_thumb_props)} videos!")
+                    has_real_data = True
+                else:
+                    logger.warning("No videoThumbProps found")
+                    # Also check if we're in SFW mode
+                    if 'is_sfw' in page_data:
+                        logger.warning(f"Site is in SFW mode: {page_data['is_sfw']}")
+            
+            logger.info(f"Success with domain: {domain}, has_real_data: {has_real_data}")
+            
+            if has_real_data:
+                return response.text, domain
+            else:
+                logger.warning(f"Domain {domain} didn't give videos, trying next...")
+                continue
+                
+        except Exception as e:
+            logger.error(f"Failed with domain {domain}: {str(e)}", exc_info=True)
+            continue
+    
+    logger.warning("No working domains found!")
     return None, None
 
+def parse_video_list(html_or_soup):
+    videos = []
+    try:
+        page_data = None
+        if isinstance(html_or_soup, dict):
+            page_data = html_or_soup
+        else:
+            if isinstance(html_or_soup, str):
+                html = html_or_soup
+            else:
+                html = str(html_or_soup)
+            page_data = extract_page_data(html)
+        
+        if page_data:
+            video_thumb_props = None
+            
+            # Check all known paths
+            paths_to_check = [
+                ('layoutPage', 'videoListProps', 'videoThumbProps'),
+                ('searchResult', 'videoThumbProps'),
+                ('pagesCategoryComponent', 'trendingVideoListProps', 'videoThumbProps'),
+                ('relatedVideosComponent', 'videoTabInitialData', 'videoListProps', 'videoThumbProps'),
+            ]
+            
+            for path_keys in paths_to_check:
+                current = page_data
+                valid = True
+                for key in path_keys:
+                    if isinstance(current, dict) and key in current:
+                        current = current[key]
+                    else:
+                        valid = False
+                        break
+                if valid and isinstance(current, list):
+                    video_thumb_props = current
+                    break
+            
+            # Recursive search
+            if not video_thumb_props:
+                def find_vtp(obj):
+                    if isinstance(obj, dict):
+                        for key, value in obj.items():
+                            if key == 'videoThumbProps' and isinstance(value, list):
+                                return value
+                            result = find_vtp(value)
+                            if result:
+                                return result
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            result = find_vtp(item)
+                            if result:
+                                return result
+                    return None
+                video_thumb_props = find_vtp(page_data)
+            
+            if video_thumb_props:
+                logger.info(f"Found {len(video_thumb_props)} video items to parse")
+                for item in video_thumb_props:
+                    try:
+                        title = item.get('title', '')
+                        link = item.get('pageURL', '')
+                        image = item.get('imageURL', '') or item.get('thumbURL', '')
+                        duration_seconds = item.get('duration', 0)
+                        duration = format_duration(duration_seconds)
+                        video_id = str(item.get('id', ''))
+                        views_raw = item.get('views', 0)
+                        views = format_views(views_raw)
+                        
+                        if link and title:
+                            videos.append({
+                                'id': video_id,
+                                'title': title,
+                                'link': link,
+                                'image': image,
+                                'duration': duration,
+                                'views': views
+                            })
+                    except Exception as e:
+                        logger.debug(f"Error parsing video item: {e}")
+                        continue
+    except Exception as e:
+        logger.error(f"Error in parse_video_list: {e}", exc_info=True)
+    return videos
 
 @app.get("/")
 def home():
-    return {"status": "success", "message": "xHamster Scraper API is running!"}
+    return {"status": "success", "message": "xHamster Scraper API (Hacker Mode) is running!"}
 
-# Debug endpoint to see raw HTML and page_data
+# Debug endpoints
 @app.get("/api/debug/html")
 async def debug_html(path: str = Query("/", description="Path to fetch")):
     html, domain = await fetch_with_fallback(path)
@@ -344,15 +450,14 @@ async def debug_html(path: str = Query("/", description="Path to fetch")):
         "status": "success", 
         "domain": domain, 
         "html_length": len(html) if html else 0,
-        "html": html[:10000] if html else None,  # Only first 10k chars
+        "html": html[:15000] if html else None,
         "page_data_keys": sorted(page_data.keys()) if page_data else None,
         "page_data": page_data
     }
 
-# Debug endpoint to try a specific domain
 @app.get("/api/debug/domain")
 async def debug_domain(domain: str = Query(..., description="Domain to test"), path: str = Query("/", description="Path to fetch")):
-    client = await get_http_client()
+    client = await get_client()
     url = f"https://{domain}{path}"
     headers = get_headers(domain)
     
@@ -366,8 +471,9 @@ async def debug_domain(domain: str = Query(..., description="Domain to test"), p
             "url": url,
             "status_code": response.status_code,
             "headers": dict(response.headers),
+            "cookies": dict(response.cookies),
             "html_length": len(response.text),
-            "html": response.text[:5000],  # First 5000 chars
+            "html": response.text[:10000],
             "page_data_keys": sorted(page_data.keys()) if page_data else None,
             "page_data": page_data,
             "videos_found": len(videos)
@@ -383,21 +489,18 @@ async def debug_domain(domain: str = Query(..., description="Domain to test"), p
 
 @app.get("/api/clear-cache")
 def clear_cache():
-    """Clear all cached responses"""
     cache.clear()
     return {"status": "success", "message": "Cache cleared successfully!"}
 
+# Main API endpoints
 @app.get("/api/creator/{creator_slug}")
 @cache_response(ttl_seconds=3600)
 async def get_creator_videos(creator_slug: str, page: int = 1):
-    """Fetch creator's profile and videos."""
-    # First, try with /creators/ path
     path = f"/creators/{creator_slug}"
     if page > 1:
         path += f"/{page}"
     response_text, domain = await fetch_with_fallback(path)
     if not response_text:
-        # Try /users/ path as fallback
         path = f"/users/{creator_slug}"
         if page > 1:
             path += f"/{page}"
@@ -410,7 +513,6 @@ async def get_creator_videos(creator_slug: str, page: int = 1):
     creator = None
     videos = []
     if page_data:
-        # Extract creator info from infoComponent.pornstarTop
         if 'infoComponent' in page_data and 'pornstarTop' in page_data['infoComponent']:
             pornstar_top = page_data['infoComponent']['pornstarTop']
             creator = {
@@ -423,12 +525,10 @@ async def get_creator_videos(creator_slug: str, page: int = 1):
                 'rating': pornstar_top.get('rating'),
                 'subscribers': None
             }
-            # Get subscribers from subscribeButtonsProps
             if ('subscribeButtonsProps' in page_data['infoComponent'] and
                 'subscribeButtonProps' in page_data['infoComponent']['subscribeButtonsProps']):
                 creator['subscribers'] = page_data['infoComponent']['subscribeButtonsProps']['subscribeButtonProps'].get('subscribers')
         
-        # Extract videos using our parse_video_list function
         videos = parse_video_list(page_data)
     
     return {
@@ -439,129 +539,9 @@ async def get_creator_videos(creator_slug: str, page: int = 1):
         "used_domain": domain
     }
 
-def parse_video_list(html_or_soup):
-    """Helper: extract video list from page HTML using embedded JSON data."""
-    videos = []
-    try:
-        page_data = None
-        if isinstance(html_or_soup, dict):
-            # If we already have page_data dict, use it directly
-            page_data = html_or_soup
-        else:
-            # If it's a string or soup object, extract page_data from it
-            if isinstance(html_or_soup, str):
-                html = html_or_soup
-            else:
-                html = str(html_or_soup)
-            page_data = extract_page_data(html)
-        
-        # Print search correction info if available
-        if page_data:
-            logger.info(f"[DEBUG] page_data keys: {sorted(page_data.keys())}")
-        
-        # Check multiple possible paths for videoThumbProps - let's also search recursively for any 'videoThumbProps'
-        video_thumb_props = None
-        
-        if page_data:
-            # First try the known paths
-            # Path 1: for trending/newest pages
-            if ('layoutPage' in page_data and 
-                'videoListProps' in page_data['layoutPage'] and 
-                'videoThumbProps' in page_data['layoutPage']['videoListProps']):
-                video_thumb_props = page_data['layoutPage']['videoListProps']['videoThumbProps']
-                logger.info("Found videos in layoutPage.videoListProps.videoThumbProps")
-            # Path 2: for search pages
-            elif ('searchResult' in page_data and 
-                  'videoThumbProps' in page_data['searchResult']):
-                video_thumb_props = page_data['searchResult']['videoThumbProps']
-                logger.info("Found videos in searchResult.videoThumbProps")
-            # Path 3: for individual video pages (related videos)
-            elif ('relatedVideosComponent' in page_data and 
-                  'videoTabInitialData' in page_data['relatedVideosComponent'] and
-                  'videoListProps' in page_data['relatedVideosComponent']['videoTabInitialData'] and
-                  'videoThumbProps' in page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']):
-                video_thumb_props = page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']['videoThumbProps']
-                logger.info("Found videos in relatedVideosComponent")
-            # Path 4: for category pages
-            elif ('pagesCategoryComponent' in page_data and 
-                  'trendingVideoListProps' in page_data['pagesCategoryComponent'] and
-                  'videoThumbProps' in page_data['pagesCategoryComponent']['trendingVideoListProps']):
-                video_thumb_props = page_data['pagesCategoryComponent']['trendingVideoListProps']['videoThumbProps']
-                logger.info("Found videos in pagesCategoryComponent")
-            # Path 5: for creator pages
-            else:
-                # Check all possible creator video section keys
-                creator_section_keys = [
-                    'newestVideoSectionComponent',
-                    'trendingVideoSectionComponent',
-                    'recommendedVideoSectionComponent'
-                ]
-                for key in creator_section_keys:
-                    if key in page_data:
-                        section_data = page_data[key]
-                        if 'videoListProps' in section_data and 'videoThumbProps' in section_data['videoListProps']:
-                            video_thumb_props = section_data['videoListProps']['videoThumbProps']
-                            logger.info(f"Found videos in {key}")
-                            break
-            
-            # If still not found, search recursively for any 'videoThumbProps' key
-            if not video_thumb_props:
-                logger.info("Searching recursively for videoThumbProps...")
-                
-                def find_video_thumb_props(obj):
-                    if isinstance(obj, dict):
-                        for key, value in obj.items():
-                            if key == 'videoThumbProps' and isinstance(value, list):
-                                return value
-                            result = find_video_thumb_props(value)
-                            if result:
-                                return result
-                    elif isinstance(obj, list):
-                        for item in obj:
-                            result = find_video_thumb_props(item)
-                            if result:
-                                return result
-                    return None
-                
-                video_thumb_props = find_video_thumb_props(page_data)
-                if video_thumb_props:
-                    logger.info(f"Found videos via recursive search")
-        
-        if video_thumb_props:
-            logger.info(f"Found {len(video_thumb_props)} video items")
-            for item in video_thumb_props:
-                try:
-                    title = item.get('title', '')
-                    link = item.get('pageURL', '')
-                    image = item.get('imageURL', '') or item.get('thumbURL', '')
-                    duration_seconds = item.get('duration', 0)
-                    duration = format_duration(duration_seconds)
-                    video_id = str(item.get('id', ''))
-                    views_raw = item.get('views', 0)
-                    views = format_views(views_raw)
-                    
-                    if link and title:
-                        videos.append({
-                            'id': video_id,
-                            'title': title,
-                            'link': link,
-                            'image': image,
-                            'duration': duration,
-                            'views': views
-                        })
-                except Exception as e:
-                    logger.debug(f"Error parsing video item: {e}")
-                    continue
-        else:
-            logger.warning("Could not find any videoThumbProps in page data")
-    except Exception as e:
-        logger.error(f"Error in parse_video_list: {e}", exc_info=True)
-    return videos
-
 @app.get("/api/search")
-@cache_response(ttl_seconds=3600)  # Re-enabled
+@cache_response(ttl_seconds=3600)
 async def search_videos(q: str = Query(..., description="Search query"), page: int = Query(1, description="Page number")):
-    # Encode spaces in query
     query_encoded = q.replace(" ", "+")
     path = f"/search/{query_encoded}"
     if page > 1:
@@ -573,7 +553,6 @@ async def search_videos(q: str = Query(..., description="Search query"), page: i
         
     try:
         videos = parse_video_list(response_text)
-                
         return {
             "status": "success",
             "query": q,
@@ -581,14 +560,12 @@ async def search_videos(q: str = Query(..., description="Search query"), page: i
             "results": videos,
             "used_domain": domain
         }
-        
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/trending")
-@cache_response(ttl_seconds=10)  # 10-second cache to prevent multi-fetch flickering
+@cache_response(ttl_seconds=10)
 async def trending_videos(page: int = Query(1, description="Page number")):
-    # Fetch the dynamic live feed for page 1, and fall back to monthly best for pagination
     if page == 1:
         path = "/"
     else:
@@ -606,7 +583,7 @@ async def trending_videos(page: int = Query(1, description="Page number")):
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/newest")
-@cache_response(ttl_seconds=10)  # 10-second cache to prevent multi-fetch flickering
+@cache_response(ttl_seconds=10)
 async def newest_videos(page: int = Query(1, description="Page number")):
     path = f"/newest/{page}"
     response_text, domain = await fetch_with_fallback(path)
@@ -621,7 +598,7 @@ async def newest_videos(page: int = Query(1, description="Page number")):
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/categories")
-@cache_response(ttl_seconds=86400)  # 24 hours
+@cache_response(ttl_seconds=86400)
 async def get_categories():
     path = "/categories"
     response_text, domain = await fetch_with_fallback(path)
@@ -659,7 +636,6 @@ async def get_categories():
                     else:
                         cats.append(cat_data)
                 else:
-                    # Update image if we found a better one later in the page
                     if image_url:
                         for cat in cats:
                             if cat['url'] == href and not cat['image']:
@@ -670,7 +646,6 @@ async def get_categories():
                                 cat['image'] = image_url
                                 break
 
-        # Separate countries and normal categories
         COUNTRY_SLUGS = {
             'indian', 'desi', 'russian', 'american', 'british', 'japanese', 'korean', 'chinese', 'german', 'french',
             'italian', 'spanish', 'brazilian', 'mexican', 'colombian', 'canadian', 'australian', 'filipino', 'thai',
@@ -715,7 +690,7 @@ async def get_categories():
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/category/{slug}")
-@cache_response(ttl_seconds=3600)  # 1 hour
+@cache_response(ttl_seconds=3600)
 async def category_videos(slug: str, page: int = Query(1, description="Page number")):
     path = f"/categories/{slug}/{page}"
     response_text, domain = await fetch_with_fallback(path)
@@ -730,13 +705,13 @@ async def category_videos(slug: str, page: int = Query(1, description="Page numb
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/video")
-@cache_response(ttl_seconds=600)  # 10 mins
+@cache_response(ttl_seconds=600)
 async def get_video_stream(url: str = Query(..., description="Full xHamster video URL")):
     try:
-        client = await get_http_client()
+        client = await get_client()
         from urllib.parse import urlparse
         parsed_url = urlparse(url)
-        domain = parsed_url.netloc or 'xhamster.com'
+        domain = parsed_url.netloc or 'xhamster.desi'
         headers = get_headers(domain)
         response = await client.get(url, headers=headers)
         response.raise_for_status()
@@ -744,30 +719,24 @@ async def get_video_stream(url: str = Query(..., description="Full xHamster vide
         html = response.text
         soup = BeautifulSoup(html, 'html.parser')
         
-        # Extract page data (embedded JSON) for views, author, etc.
         page_data = extract_page_data(html)
         
-        # Extract video title
         title_tag = soup.select_one('h1.with-player-container')
         if not title_tag:
             title_tag = soup.select_one('h1')
         video_title = title_tag.text.strip() if title_tag else 'Untitled Video'
         
-        # Extract views and author/uploader from page data
         views = None
         uploader = None
         if page_data:
-            # Extract views
             for view_key in ['videoModel', 'videoEntity', 'videoHeadingComponent', 'videoTitle']:
                 if view_key in page_data and 'views' in page_data[view_key]:
                     views_raw = page_data[view_key]['views']
                     views = format_views(views_raw)
                     break
             
-            # Extract author/uploader
             if 'videoModel' in page_data and 'author' in page_data['videoModel']:
                 author = page_data['videoModel']['author']
-                # Also check 'landing' for better name/avatar
                 landing = page_data['videoModel'].get('landing', {}) if 'landing' in page_data['videoModel'] else {}
                 uploader = {
                     'name': landing.get('name') or author.get('name'),
@@ -776,24 +745,19 @@ async def get_video_stream(url: str = Query(..., description="Full xHamster vide
                     'profile_url': landing.get('link') or author.get('pageURL')
                 }
         
-        # Extract related videos (pass html)
         related = parse_video_list(html)
         
-        # Use regex to find direct MP4 and M3U8 streaming links in the HTML
         m3u8_pattern = r'https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*'
         mp4_pattern = r'https?://[^\s"\'<>]+\.mp4[^\s"\'<>]*'
         
         m3u8_links = list(set(re.findall(m3u8_pattern, html)))
         all_mp4_links = list(set(re.findall(mp4_pattern, html)))
         
-        # Filter out fake mp4s: exclude m3u8 disguised as mp4, and thumbnail previews
         mp4_links = [u for u in all_mp4_links if '.m3u8' not in u and 'thumb' not in u]
         
-        # Pick the best quality direct URL (prefer ones with resolution like 480p, 720p)
         quality_mp4s = [u for u in mp4_links if any(q in u for q in ['1080p', '720p', '480p', '240p'])]
         
         if quality_mp4s:
-            # Prefer highest quality
             for q in ['1080p', '720p', '480p', '240p']:
                 match = [u for u in quality_mp4s if q in u]
                 if match:
@@ -809,13 +773,11 @@ async def get_video_stream(url: str = Query(..., description="Full xHamster vide
             from urllib.parse import quote
             proxy_url = f"/api/proxy?url={quote(direct_url, safe='')}"
         
-        # HLS proxy URL for multi-quality streaming
         hls_proxy_url = None
         if m3u8_links:
             from urllib.parse import quote
             hls_proxy_url = f"/api/hls-proxy?url={quote(m3u8_links[0], safe='')}"
         
-        # Extract referer/origin domain from original url
         from urllib.parse import urlparse
         parsed_original = urlparse(url)
         original_domain = parsed_original.netloc
@@ -842,9 +804,7 @@ async def get_video_stream(url: str = Query(..., description="Full xHamster vide
 
 @app.get("/api/proxy")
 async def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to proxy"), request: Request = None):
-    """Proxy the video stream with correct Referer header to bypass CDN 403 blocks."""
     try:
-        # Find the appropriate xHamster domain for referer
         from urllib.parse import urlparse
         referer_domain = 'xhamster.desi'
         for domain in XHAMSTER_DOMAINS:
@@ -855,24 +815,20 @@ async def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to 
         proxy_headers = get_headers(referer_domain)
         proxy_headers['Origin'] = f'https://{referer_domain}'
         
-        # Copy range headers if present
         if request and 'range' in request.headers:
             proxy_headers['Range'] = request.headers['range']
         
-        # Get the stream
-        client = await get_http_client()
+        client = await get_client()
         response_context = client.stream('GET', url, headers=proxy_headers)
         r = await response_context.__aenter__()
         r.raise_for_status()
         
-        # Build response headers
         response_headers = {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, OPTIONS',
             'Access-Control-Allow-Headers': '*',
         }
         
-        # Copy important headers
         for header in ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges', 'Cache-Control']:
             if header in r.headers:
                 response_headers[header] = r.headers[header]
@@ -896,9 +852,8 @@ async def proxy_video(url: str = Query(..., description="Direct MP4/M3U8 URL to 
 
 @app.get("/api/hls-proxy")
 async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with URL rewriting"), request: Request = None):
-    """Proxy M3U8 playlists and rewrite internal URLs to also go through our proxy."""
     try:
-        # Find the appropriate xHamster domain for referer
+        from urllib.parse import urlparse
         referer_domain = 'xhamster.desi'
         for domain in XHAMSTER_DOMAINS:
             if domain in url:
@@ -908,17 +863,14 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
         proxy_headers = get_headers(referer_domain)
         proxy_headers['Origin'] = f'https://{referer_domain}'
         
-        # First check if it's an M3U8 playlist by reading the content
-        client = await get_http_client()
+        client = await get_client()
         response = await client.get(url, headers=proxy_headers)
         response.raise_for_status()
         
         content = response.text
         content_type = response.headers.get('Content-Type', 'application/vnd.apple.mpegurl')
         
-        # Check if this is an M3U8 playlist
         if '.m3u8' in url or 'mpegurl' in content_type.lower() or content.strip().startswith('#EXTM3U'):
-            # Get the base URL for resolving relative paths
             base_url = url.rsplit('/', 1)[0] + '/'
             from urllib.parse import quote
             
@@ -926,7 +878,6 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
             for line in content.splitlines():
                 line = line.strip()
                 if not line or line.startswith('#'):
-                    # For EXT-X-MAP or similar tags that contain URIs
                     if 'URI="' in line:
                         uri_match = re.search(r'URI="([^"]+)"', line)
                         if uri_match:
@@ -934,7 +885,6 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
                             if not orig_uri.startswith('http'):
                                 orig_uri = base_url + orig_uri
                             proxied = f"/api/hls-proxy?url={quote(orig_uri, safe='')}"
-                            # Use the request's host instead of hardcoded localhost:8000
                             if request:
                                 scheme = request.url.scheme
                                 host = request.headers.get('host', 'localhost:8000')
@@ -943,12 +893,10 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
                                 line = line.replace(uri_match.group(0), f'URI="http://localhost:8000{proxied}"')
                     rewritten_lines.append(line)
                 else:
-                    # This is a URL line (segment or sub-playlist)
                     segment_url = line
                     if not segment_url.startswith('http'):
                         segment_url = base_url + segment_url
                     
-                    # Sub-playlists (.m3u8) go through hls-proxy, segments through regular proxy
                     if '.m3u8' in segment_url:
                         if request:
                             scheme = request.url.scheme
@@ -976,7 +924,6 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
                 }
             )
         else:
-            # Not an M3U8 - stream it
             response_context = client.stream('GET', url, headers=proxy_headers)
             r_stream = await response_context.__aenter__()
             r_stream.raise_for_status()
@@ -1007,4 +954,6 @@ async def hls_proxy(url: str = Query(..., description="M3U8 URL to proxy with UR
         return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=7860, reload=True)
+    import os
+    port = int(os.environ.get("PORT", 7860))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
