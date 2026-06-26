@@ -523,7 +523,7 @@ async def debug_html(path: str = Query("/", description="Path to fetch")):
 
 @app.get("/api/debug/domain")
 async def debug_domain(domain: str = Query(..., description="Domain to test"), path: str = Query("/", description="Path to fetch")):
-    client = await get_client()
+    client = await get_client(None)
     url = f"https://{domain}{path}"
     headers = get_headers(domain)
     
@@ -618,7 +618,8 @@ async def search_videos(q: str = Query(..., description="Search query"), page: i
         return {"status": "error", "message": "No working xHamster domain found!"}
         
     try:
-        videos = parse_video_list(response_text)
+        page_data = extract_page_data(response_text)
+        videos = parse_video_list(page_data)
         return {
             "status": "success",
             "query": q,
@@ -643,7 +644,8 @@ async def trending_videos(page: int = Query(1, description="Page number")):
         return {"status": "error", "message": "No working xHamster domain found!"}
     
     try:
-        videos = parse_video_list(response_text)
+        page_data = extract_page_data(response_text)
+        videos = parse_video_list(page_data)
         return {"status": "success", "page": page, "results": videos, "used_domain": domain}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -658,7 +660,8 @@ async def newest_videos(page: int = Query(1, description="Page number")):
         return {"status": "error", "message": "No working xHamster domain found!"}
     
     try:
-        videos = parse_video_list(response_text)
+        page_data = extract_page_data(response_text)
+        videos = parse_video_list(page_data)
         return {"status": "success", "page": page, "results": videos, "used_domain": domain}
     except Exception as e:
         return {"status": "error", "message": str(e)}
