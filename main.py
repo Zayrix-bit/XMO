@@ -20,6 +20,10 @@ try:
 except ImportError:
     PROXY_TRANSPORT_AVAILABLE = False
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()  # Loads variables from .env file
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -52,6 +56,22 @@ XHAMSTER_DOMAINS = [
 _cookie_jar = httpx.Cookies()
 _session = None
 
+# Bypass cookies to disable SFW mode and age verification
+def set_bypass_cookies(domain: str):
+    """Set cookies that bypass age verification and SFW mode"""
+    # Cookies for age verification
+    _cookie_jar.set("age_gate", "1", domain=domain, path="/")
+    _cookie_jar.set("age_gate2", "1", domain=domain, path="/")
+    _cookie_jar.set("isAgeVerified", "true", domain=domain, path="/")
+    _cookie_jar.set("is_sfw", "false", domain=domain, path="/")
+    _cookie_jar.set("isSFW", "false", domain=domain, path="/")
+    _cookie_jar.set("parental_control", "false", domain=domain, path="/")
+    _cookie_jar.set("disableSFW", "1", domain=domain, path="/")
+    # Some additional random cookies to look real
+    _cookie_jar.set("isFirstVisit", "false", domain=domain, path="/")
+    _cookie_jar.set("hasSeenAgeGate", "true", domain=domain, path="/")
+    logger.info(f"Bypass cookies set for domain: {domain}")
+
 def get_headers(domain: str = 'xhamster.desi'):
     """Get SUPER realistic browser headers!"""
     ua = random.choice(_USER_AGENTS)
@@ -59,14 +79,14 @@ def get_headers(domain: str = 'xhamster.desi'):
         "User-Agent": ua,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Referer": f"https://{domain}/",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        "Referer": f"https://www.google.com/",  # Sometimes fake Google referer helps
         "DNT": "1",
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1",
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-Site": "cross-site",
         "Sec-Fetch-User": "?1",
         "Cache-Control": "max-age=0",
         "Priority": "u=0, i",
@@ -245,14 +265,33 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
     
     for domain in all_domains:
         try:
+            # First load the homepage to get real cookies and session
+            home_url = f"{protocol}://{domain}/"
+            logger.info(f"Loading homepage for {domain} to get cookies")
+            
+            # Set bypass cookies for this domain
+            set_bypass_cookies(domain)
+            
+            home_headers = get_headers(domain)
+            # For homepage, referer is google
+            home_headers["Referer"] = "https://www.google.com/"
+            
+            await asyncio.sleep(random.uniform(0.3, 1.0))
+            home_response = await client.get(home_url, headers=home_headers)
+            logger.info(f"Homepage status: {home_response.status_code}")
+            # Save cookies from homepage
+            _cookie_jar.update(home_response.cookies)
+            
+            # Now make the actual request
             url = f"{protocol}://{domain}{path}"
             headers = get_headers(domain)
+            # Now referer is the homepage itself
+            headers["Referer"] = home_url
             
-            # Add realistic delay
             await asyncio.sleep(random.uniform(0.5, 2.0))
-            
-            logger.info(f"Trying domain: {url}")
-            
+
+            logger.info(f"Trying actual URL: {url}")
+
             response = await client.get(url, headers=headers)
             logger.info(f"Initial response status code: {response.status_code}, HTML length: {len(response.text)}")
             
