@@ -27,6 +27,28 @@ load_dotenv()  # Loads variables from .env file
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# Proxy configuration
+_proxy_list = []
+def load_proxies():
+    """Load proxies from environment variable"""
+    proxy_str = os.environ.get("PROXY_LIST", "")
+    if proxy_str:
+        # Split by comma or space
+        _proxy_list.extend([p.strip() for p in proxy_str.replace(",", " ").split() if p.strip()])
+    
+    # Also add single proxies if they exist
+    single_http = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+    single_https = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+    
+    if single_http and single_http not in _proxy_list:
+        _proxy_list.append(single_http)
+    elif single_https and single_https not in _proxy_list:
+        _proxy_list.append(single_https)
+    
+    logger.info(f"Loaded {len(_proxy_list)} proxies from env")
+
+load_proxies()
+
 # Advanced Anti-Detection: More realistic User Agents
 _USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
@@ -50,11 +72,20 @@ XHAMSTER_DOMAINS = [
     'xhamster8.com',
     'xhamster9.com',
     'xhamster10.com',
+    'xhamster11.com',
+    'xhamster12.com',
+    'xhamster13.com',
+    'xhamster14.com',
+    'xhamster15.com',
+    'xhamster16.com',
+    'xhamster17.com',
+    'xhamster18.com',
+    'xhamster19.com',
+    'xhamster20.com',
 ]
 
 # Cookie jar for persistence
 _cookie_jar = httpx.Cookies()
-_session = None
 
 # Bypass cookies to disable SFW mode and age verification
 def set_bypass_cookies(domain: str):
@@ -107,30 +138,24 @@ def get_headers(domain: str = 'xhamster.desi'):
         })
     return headers
 
-async def get_client():
-    """Create a persistent HTTP client with proper settings"""
-    global _session
-    if _session is None:
-        # Configure httpx for maximum realism
-        limits = httpx.Limits(max_keepalive_connections=10, max_connections=20)
-        timeout = httpx.Timeout(60.0, connect=10.0)
+async def get_client(proxy: str = None):
+    """Create an HTTP client with proper settings, optionally with proxy"""
+    # Configure httpx for maximum realism
+    limits = httpx.Limits(max_keepalive_connections=10, max_connections=20)
+    timeout = httpx.Timeout(60.0, connect=10.0)
         
-        # Add proxy from env if available
-        proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
-        
-        client_kwargs = {
-            "timeout": timeout,
-            "follow_redirects": True,
-            "limits": limits,
-            "cookies": _cookie_jar,
-            "http2": True,  # HTTP/2 is crucial for anti-detection
-            "verify": True,  # Verify SSL certificates like real browser
-        }
-        if proxy:
-            client_kwargs["proxy"] = proxy  # httpx uses 'proxy' (singular), not 'proxies'
-        _session = httpx.AsyncClient(**client_kwargs)
-        logger.info("Persistent HTTP client initialized")
-    return _session
+    client_kwargs = {
+        "timeout": timeout,
+        "follow_redirects": True,
+        "limits": limits,
+        "cookies": _cookie_jar,
+        "http2": True,  # HTTP/2 is crucial for anti-detection
+        "verify": True,  # Verify SSL certificates like real browser
+    }
+    if proxy:
+        client_kwargs["proxy"] = proxy  # httpx uses 'proxy' (singular), not 'proxies'
+        logger.info(f"Using proxy: {proxy[:50]}..." if len(proxy) > 50 else f"Using proxy: {proxy}")
+    return httpx.AsyncClient(**client_kwargs)
 
 def extract_page_data(html):
     """Extract page data from HTML by finding the largest JSON object in script tags"""
@@ -202,18 +227,7 @@ def format_views(views):
     else:
         return str(views)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await get_client()
-    logger.info("Application startup complete")
-    yield
-    global _session
-    if _session:
-        await _session.aclose()
-        _session = None
-        logger.info("HTTP client closed")
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -255,140 +269,153 @@ def cache_response(ttl_seconds: int):
     return decorator
 
 async def fetch_with_fallback(path: str, use_https: bool = True):
-    """Advanced fetch with anti-bot measures"""
-    client = await get_client()
+    """Advanced fetch with proxy rotation and anti-bot measures"""
     protocol = 'https' if use_https else 'http'
     
-    # Prioritize desi domains
+    # Prepare domain list
     all_domains = XHAMSTER_DOMAINS.copy()
     random.shuffle(all_domains)
     
-    for domain in all_domains:
-        try:
-            # First load the homepage to get real cookies and session
-            home_url = f"{protocol}://{domain}/"
-            logger.info(f"Loading homepage for {domain} to get cookies")
-            
-            # Set bypass cookies for this domain
-            set_bypass_cookies(domain)
-            
-            home_headers = get_headers(domain)
-            # For homepage, referer is google
-            home_headers["Referer"] = "https://www.google.com/"
-            
-            await asyncio.sleep(random.uniform(0.3, 1.0))
-            home_response = await client.get(home_url, headers=home_headers)
-            logger.info(f"Homepage status: {home_response.status_code}")
-            # Save cookies from homepage
-            _cookie_jar.update(home_response.cookies)
-            
-            # Now make the actual request
-            url = f"{protocol}://{domain}{path}"
-            headers = get_headers(domain)
-            # Now referer is the homepage itself
-            headers["Referer"] = home_url
-            
-            await asyncio.sleep(random.uniform(0.5, 2.0))
-
-            logger.info(f"Trying actual URL: {url}")
-
-            response = await client.get(url, headers=headers)
-            logger.info(f"Initial response status code: {response.status_code}, HTML length: {len(response.text)}")
-            
-            # Save cookies
-            _cookie_jar.update(response.cookies)
-            
-            # Check for anti-bot redirect
-            if response.status_code == 200 and 'REDIRECT_URL' in response.text:
-                logger.info("Found anti-bot page, handling...")
-                soup = BeautifulSoup(response.text, 'html.parser')
-                redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
-                if redirect_url_match:
-                    redirect_url = redirect_url_match.group(1)
-                    noscript_link = soup.find('noscript')
-                    fp = '-5'
-                    if noscript_link and noscript_link.find('a'):
-                        fp_url = noscript_link.find('a')['href']
-                        fp_match = re.search(r'fp=([^&]+)', fp_url)
-                        if fp_match:
-                            fp = fp_match.group(1)
-                    final_url = redirect_url + f"fp={fp}"
-                    logger.info(f"Following redirect to: {final_url}")
-                    await asyncio.sleep(random.uniform(0.5, 1.5))
-                    response = await client.get(final_url, headers=headers)
-                    logger.info(f"Final response status code: {response.status_code}, HTML length: {len(response.text)}")
-                    _cookie_jar.update(response.cookies)
-            
-            response.raise_for_status()
-            
-            # Check for real content
-            page_data = extract_page_data(response.text)
-            has_real_data = False
-            if page_data:
-                video_thumb_props = None
-                
-                # Check all known paths
-                paths_to_check = [
-                    ('layoutPage', 'videoListProps', 'videoThumbProps'),
-                    ('searchResult', 'videoThumbProps'),
-                    ('pagesCategoryComponent', 'trendingVideoListProps', 'videoThumbProps'),
-                    ('relatedVideosComponent', 'videoTabInitialData', 'videoListProps', 'videoThumbProps'),
-                ]
-                
-                for path_keys in paths_to_check:
-                    current = page_data
-                    valid = True
-                    for key in path_keys:
-                        if isinstance(current, dict) and key in current:
-                            current = current[key]
-                        else:
-                            valid = False
-                            break
-                    if valid and isinstance(current, list):
-                        video_thumb_props = current
-                        logger.info(f"Found videos at path: {path_keys}")
-                        break
-                
-                # If not found, try recursive search
-                if not video_thumb_props:
-                    def find_vtp(obj):
-                        if isinstance(obj, dict):
-                            for key, value in obj.items():
-                                if key == 'videoThumbProps' and isinstance(value, list):
-                                    return value
-                                result = find_vtp(value)
-                                if result:
-                                    return result
-                        elif isinstance(obj, list):
-                            for item in obj:
-                                result = find_vtp(item)
-                                if result:
-                                    return result
-                        return None
-                    video_thumb_props = find_vtp(page_data)
-                
-                if video_thumb_props:
-                    logger.info(f"Found {len(video_thumb_props)} videos!")
-                    has_real_data = True
-                else:
-                    logger.warning("No videoThumbProps found")
-                    # Also check if we're in SFW mode
-                    if 'is_sfw' in page_data:
-                        logger.warning(f"Site is in SFW mode: {page_data['is_sfw']}")
-            
-            logger.info(f"Success with domain: {domain}, has_real_data: {has_real_data}")
-            
-            if has_real_data:
-                return response.text, domain
-            else:
-                logger.warning(f"Domain {domain} didn't give videos, trying next...")
-                continue
-                
-        except Exception as e:
-            logger.error(f"Failed with domain {domain}: {str(e)}", exc_info=True)
-            continue
+    # Prepare proxy list (copy and shuffle)
+    proxies_to_try = _proxy_list.copy()
+    random.shuffle(proxies_to_try)
+    # Add "None" as final option to try without proxy
+    proxies_to_try.append(None)
     
-    logger.warning("No working domains found!")
+    for proxy in proxies_to_try:
+        client = await get_client(proxy)
+        try:
+            for domain in all_domains:
+                try:
+                    # First load the homepage to get real cookies and session
+                    home_url = f"{protocol}://{domain}/"
+                    logger.info(f"[{proxy or 'DIRECT'}] Loading homepage for {domain}")
+                    
+                    # Set bypass cookies for this domain
+                    set_bypass_cookies(domain)
+                    
+                    home_headers = get_headers(domain)
+                    # For homepage, referer is google
+                    home_headers["Referer"] = "https://www.google.com/"
+                    
+                    await asyncio.sleep(random.uniform(0.3, 1.0))
+                    home_response = await client.get(home_url, headers=home_headers)
+                    logger.info(f"[{proxy or 'DIRECT'}] Homepage status: {home_response.status_code}")
+                    # Save cookies from homepage
+                    _cookie_jar.update(home_response.cookies)
+                    
+                    # Now make the actual request
+                    url = f"{protocol}://{domain}{path}"
+                    headers = get_headers(domain)
+                    # Now referer is the homepage itself
+                    headers["Referer"] = home_url
+                    
+                    await asyncio.sleep(random.uniform(0.5, 2.0))
+
+                    logger.info(f"[{proxy or 'DIRECT'}] Trying actual URL: {url}")
+
+                    response = await client.get(url, headers=headers)
+                    logger.info(f"[{proxy or 'DIRECT'}] Response status: {response.status_code}, HTML length: {len(response.text)}")
+                    
+                    # Save cookies
+                    _cookie_jar.update(response.cookies)
+                    
+                    # Check for anti-bot redirect
+                    if response.status_code == 200 and 'REDIRECT_URL' in response.text:
+                        logger.info("Found anti-bot page, handling...")
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
+                        if redirect_url_match:
+                            redirect_url = redirect_url_match.group(1)
+                            noscript_link = soup.find('noscript')
+                            fp = '-5'
+                            if noscript_link and noscript_link.find('a'):
+                                fp_url = noscript_link.find('a')['href']
+                                fp_match = re.search(r'fp=([^&]+)', fp_url)
+                                if fp_match:
+                                    fp = fp_match.group(1)
+                            final_url = redirect_url + f"fp={fp}"
+                            logger.info(f"Following redirect to: {final_url}")
+                            await asyncio.sleep(random.uniform(0.5, 1.5))
+                            response = await client.get(final_url, headers=headers)
+                            logger.info(f"Final response status: {response.status_code}, HTML length: {len(response.text)}")
+                            _cookie_jar.update(response.cookies)
+                    
+                    response.raise_for_status()
+                    
+                    # Check for real content
+                    page_data = extract_page_data(response.text)
+                    has_real_data = False
+                    if page_data:
+                        video_thumb_props = None
+                        
+                        # Check all known paths
+                        paths_to_check = [
+                            ('layoutPage', 'videoListProps', 'videoThumbProps'),
+                            ('searchResult', 'videoThumbProps'),
+                            ('pagesCategoryComponent', 'trendingVideoListProps', 'videoThumbProps'),
+                            ('relatedVideosComponent', 'videoTabInitialData', 'videoListProps', 'videoThumbProps'),
+                        ]
+                        
+                        for path_keys in paths_to_check:
+                            current = page_data
+                            valid = True
+                            for key in path_keys:
+                                if isinstance(current, dict) and key in current:
+                                    current = current[key]
+                                else:
+                                    valid = False
+                                    break
+                            if valid and isinstance(current, list):
+                                video_thumb_props = current
+                                logger.info(f"Found videos at path: {path_keys}")
+                                break
+                        
+                        # If not found, try recursive search
+                        if not video_thumb_props:
+                            def find_vtp(obj):
+                                if isinstance(obj, dict):
+                                    for key, value in obj.items():
+                                        if key == 'videoThumbProps' and isinstance(value, list):
+                                            return value
+                                        result = find_vtp(value)
+                                        if result:
+                                            return result
+                                elif isinstance(obj, list):
+                                    for item in obj:
+                                        result = find_vtp(item)
+                                        if result:
+                                            return result
+                                return None
+                            video_thumb_props = find_vtp(page_data)
+                        
+                        if video_thumb_props:
+                            logger.info(f"[{proxy or 'DIRECT'}] Found {len(video_thumb_props)} videos on {domain}!")
+                            has_real_data = True
+                        else:
+                            logger.warning(f"[{proxy or 'DIRECT'}] No videoThumbProps found on {domain}")
+                            if 'is_sfw' in page_data:
+                                logger.warning(f"[{proxy or 'DIRECT'}] Site is in SFW mode: {page_data['is_sfw']}")
+                    
+                    logger.info(f"[{proxy or 'DIRECT'}] Success with domain: {domain}, has_real_data: {has_real_data}")
+                    
+                    if has_real_data:
+                        await client.aclose()
+                        return response.text, domain
+                    else:
+                        logger.warning(f"[{proxy or 'DIRECT'}] Domain {domain} didn't give videos, trying next...")
+                        continue
+                        
+                except Exception as e:
+                    logger.error(f"[{proxy or 'DIRECT'}] Failed with domain {domain}: {str(e)}", exc_info=True)
+                    continue
+        
+        except Exception as e:
+            logger.error(f"[{proxy or 'DIRECT'}] Proxy failed completely: {str(e)}")
+        finally:
+            await client.aclose()
+    
+    logger.warning("No working domains or proxies found!")
     return None, None
 
 def parse_video_list(html_or_soup):
