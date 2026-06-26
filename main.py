@@ -203,18 +203,22 @@ def get_headers(domain: str = 'xhamster.com'):
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0',
+        'Priority': 'u=0, i',
     }
     
     # Add client hints only for Chrome/Chromium user agents to avoid detection
     if 'Chrome' in ua:
         headers['Sec-Ch-Ua'] = '"Chromium";v="131", "Not_A Brand";v="24", "Google Chrome";v="131"'
         headers['Sec-Ch-Ua-Mobile'] = '?0'
-        if 'Windows' in ua:
-            headers['Sec-Ch-Ua-Platform'] = '"Windows"'
-        elif 'Macintosh' in ua:
-            headers['Sec-Ch-Ua-Platform'] = '"macOS"'
-        else:
-            headers['Sec-Ch-Ua-Platform'] = '"Linux"'
+        headers['Sec-Ch-Ua-Arch'] = '"x86"'
+        headers['Sec-Ch-Ua-Bitness'] = '"64"'
+        headers['Sec-Ch-Ua-Full-Version'] = '"131.0.0.0"'
+        headers['Sec-Ch-Ua-Full-Version-List'] = '"Chromium";v="131.0.0.0", "Not_A Brand";v="24.0.0.0", "Google Chrome";v="131.0.0.0"'
+        headers['Sec-Ch-Ua-Model'] = '""'
+        headers['Sec-Ch-Ua-Platform'] = '"Windows"'
+        headers['Sec-Ch-Ua-Platform-Version'] = '"15.0.0"'
+        headers['Sec-Ch-Ua-Wow64'] = '?0'
             
     return headers
 
@@ -231,12 +235,21 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
     """
     client = await get_http_client()
     protocol = 'https' if use_https else 'http'
-    for domain in XHAMSTER_DOMAINS:
+    
+    # Shuffle domains to avoid always hitting the same first
+    shuffled_domains = XHAMSTER_DOMAINS.copy()
+    random.shuffle(shuffled_domains)
+    
+    for domain in shuffled_domains:
         try:
             url = f"{protocol}://{domain}{path}"
             headers = get_headers(domain)
+            
+            # Add small random delay to avoid rate limiting
+            await asyncio.sleep(random.uniform(0.1, 0.5))
+            
             logger.info(f"Trying domain: {url}")
-            response = await client.get(url, headers=headers)
+            response = await client.get(url, headers=headers, follow_redirects=True)
             logger.info(f"Initial response status code: {response.status_code}, HTML length: {len(response.text)}")
             
             # Check if this is the anti-bot redirect page
@@ -257,8 +270,10 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
                     # Build the final URL
                     final_url = redirect_url + f"fp={fp}"
                     logger.info(f"Following redirect to: {final_url}")
+                    # Add another small delay before following redirect
+                    await asyncio.sleep(random.uniform(0.1, 0.3))
                     # Now fetch the actual page
-                    response = await client.get(final_url, headers=headers)
+                    response = await client.get(final_url, headers=headers, follow_redirects=True)
                     logger.info(f"Final response status code: {response.status_code}, HTML length: {len(response.text)}")
             
             response.raise_for_status()
