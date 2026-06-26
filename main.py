@@ -14,7 +14,7 @@ import logging
 import os
 import random
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 def extract_page_data(html):
     """Extract page data from HTML by finding the largest JSON object in script tags"""
@@ -22,11 +22,12 @@ def extract_page_data(html):
     largest_data = None
     largest_size = 0
     
+    logger.debug(f"Extracting page data from HTML of length: {len(html)}")
+    
     for script in soup.find_all('script'):
         if script.string:
             try:
                 # Find all JSON objects in the script
-                # Use a pattern that matches balanced braces (handles nested objects)
                 content = script.string
                 start_idx = 0
                 while True:
@@ -53,12 +54,20 @@ def extract_page_data(html):
                             if isinstance(data, dict) and size > largest_size:
                                 largest_size = size
                                 largest_data = data
-                        except Exception:
+                                logger.debug(f"Found large JSON object: {size} bytes, keys: {sorted(data.keys())[:10]}")
+                        except json.JSONDecodeError:
                             pass
+                        except Exception as e:
+                            logger.debug(f"Error parsing JSON: {e}")
                     
                     start_idx = end_brace
             except Exception:
                 continue
+    
+    if largest_data:
+        logger.info(f"Successfully extracted page data with keys: {sorted(largest_data.keys())}")
+    else:
+        logger.warning("Failed to extract any page data from HTML")
     return largest_data
 
 def format_duration(seconds):
@@ -92,9 +101,10 @@ async def get_http_client():
     global http_client
     if http_client is None:
         http_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0),
+            timeout=httpx.Timeout(60.0),  # Increased timeout
             follow_redirects=True,
             limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+            http2=True,  # Enable HTTP/2
         )
         logger.info("HTTP client lazily initialized")
     return http_client
@@ -176,15 +186,27 @@ XHAMSTER_DOMAINS = [
     'xhamster8.com',
     'xhamster9.com',
     'xhamster10.com',
+    'xhamster11.com',
+    'xhamster12.com',
+    'xhamster13.com',
+    'xhamster14.com',
+    'xhamster15.com',
+    'xhamster16.com',
+    'xhamster17.com',
+    'xhamster18.com',
+    'xhamster19.com',
+    'xhamster20.com',
 ]
 
 # Rotating User-Agents to reduce bot detection
 _USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
 ]
 
 def get_headers(domain: str = 'xhamster.com'):
@@ -236,66 +258,72 @@ async def fetch_with_fallback(path: str, use_https: bool = True):
     client = await get_http_client()
     protocol = 'https' if use_https else 'http'
     
-    # Shuffle domains to avoid always hitting the same first
-    shuffled_domains = XHAMSTER_DOMAINS.copy()
-    random.shuffle(shuffled_domains)
-    
-    for domain in shuffled_domains:
-        try:
-            url = f"{protocol}://{domain}{path}"
-            headers = get_headers(domain)
+    # Try domains in original order first, then shuffled
+    for domain_list in [XHAMSTER_DOMAINS.copy(), XHAMSTER_DOMAINS.copy()]:
+        if domain_list is XHAMSTER_DOMAINS:
+            random.shuffle(domain_list)
             
-            # Add small random delay to avoid rate limiting
-            await asyncio.sleep(random.uniform(0.1, 0.5))
-            
-            logger.info(f"Trying domain: {url}")
-            response = await client.get(url, headers=headers, follow_redirects=True)
-            logger.info(f"Initial response status code: {response.status_code}, HTML length: {len(response.text)}")
-            
-            # Check if this is the anti-bot redirect page
-            if response.status_code == 200 and 'REDIRECT_URL' in response.text:
-                logger.info("Found anti-bot page, following redirect...")
-                soup = BeautifulSoup(response.text, 'html.parser')
-                redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
-                if redirect_url_match:
-                    redirect_url = redirect_url_match.group(1)
-                    # Let's use the fp parameter from the noscript link
-                    noscript_link = soup.find('noscript')
-                    fp = '-5'  # default
-                    if noscript_link and noscript_link.find('a'):
-                        fp_url = noscript_link.find('a')['href']
-                        fp_match = re.search(r'fp=([^&]+)', fp_url)
-                        if fp_match:
-                            fp = fp_match.group(1)
-                    # Build the final URL
-                    final_url = redirect_url + f"fp={fp}"
-                    logger.info(f"Following redirect to: {final_url}")
-                    # Add another small delay before following redirect
-                    await asyncio.sleep(random.uniform(0.1, 0.3))
-                    # Now fetch the actual page
-                    response = await client.get(final_url, headers=headers, follow_redirects=True)
-                    logger.info(f"Final response status code: {response.status_code}, HTML length: {len(response.text)}")
-            
-            response.raise_for_status()
-            
-            # Log whether we got real content or a bot-detection page
-            if path == '/categories':
-                has_real_data = '/categories/' in response.text
-            else:
-                has_real_data = 'videoThumbProps' in response.text or 'videoListProps' in response.text
+        for domain in domain_list:
+            try:
+                url = f"{protocol}://{domain}{path}"
+                headers = get_headers(domain)
                 
-            logger.info(f"Success with domain: {domain}, has_real_data: {has_real_data}")
-            logger.info(f"Final URL (after redirects): {response.url}")
-            
-            if has_real_data:
-                return response.text, domain
-            else:
-                logger.warning(f"Domain {domain} returned HTML without expected content (possible bot detection), trying next...")
+                # Add small random delay to avoid rate limiting
+                await asyncio.sleep(random.uniform(0.1, 0.5))
+                
+                logger.info(f"Trying domain: {url}")
+                response = await client.get(url, headers=headers, follow_redirects=True)
+                logger.info(f"Initial response status code: {response.status_code}, HTML length: {len(response.text)}")
+                logger.info(f"Response headers: {dict(response.headers)}")
+                
+                # Log first 500 characters of HTML for debugging
+                logger.debug(f"First 500 chars of HTML: {response.text[:500]}")
+                
+                # Check if this is the anti-bot redirect page
+                if response.status_code == 200 and 'REDIRECT_URL' in response.text:
+                    logger.info("Found anti-bot page, following redirect...")
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    redirect_url_match = re.search(r'const REDIRECT_URL = \'([^\']+)\'', response.text)
+                    if redirect_url_match:
+                        redirect_url = redirect_url_match.group(1)
+                        # Let's use the fp parameter from the noscript link
+                        noscript_link = soup.find('noscript')
+                        fp = '-5'  # default
+                        if noscript_link and noscript_link.find('a'):
+                            fp_url = noscript_link.find('a')['href']
+                            fp_match = re.search(r'fp=([^&]+)', fp_url)
+                            if fp_match:
+                                fp = fp_match.group(1)
+                        # Build the final URL
+                        final_url = redirect_url + f"fp={fp}"
+                        logger.info(f"Following redirect to: {final_url}")
+                        # Add another small delay before following redirect
+                        await asyncio.sleep(random.uniform(0.1, 0.3))
+                        # Now fetch the actual page
+                        response = await client.get(final_url, headers=headers, follow_redirects=True)
+                        logger.info(f"Final response status code: {response.status_code}, HTML length: {len(response.text)}")
+                        logger.debug(f"First 500 chars after redirect: {response.text[:500]}")
+                
+                response.raise_for_status()
+                
+                # Log whether we got real content or a bot-detection page
+                if path == '/categories':
+                    has_real_data = '/categories/' in response.text
+                else:
+                    has_real_data = 'videoThumbProps' in response.text or 'videoListProps' in response.text
+                    
+                logger.info(f"Success with domain: {domain}, has_real_data: {has_real_data}")
+                logger.info(f"Final URL (after redirects): {response.url}")
+                
+                if has_real_data:
+                    return response.text, domain
+                else:
+                    logger.warning(f"Domain {domain} returned HTML without expected content (possible bot detection), trying next...")
+                    continue
+                    
+            except Exception as e:
+                logger.error(f"Failed with domain {domain}: {str(e)}", exc_info=True)
                 continue
-                
-        except Exception as e:
-            logger.error(f"Failed with domain {domain}: {str(e)}")
-            continue
     
     # If no domain returned video data, return the last successful response anyway
     logger.warning("No domain returned video data, returning None")
@@ -316,9 +344,42 @@ async def debug_html(path: str = Query("/", description="Path to fetch")):
         "status": "success", 
         "domain": domain, 
         "html_length": len(html) if html else 0,
-        "html": html,
+        "html": html[:10000] if html else None,  # Only first 10k chars
+        "page_data_keys": sorted(page_data.keys()) if page_data else None,
         "page_data": page_data
     }
+
+# Debug endpoint to try a specific domain
+@app.get("/api/debug/domain")
+async def debug_domain(domain: str = Query(..., description="Domain to test"), path: str = Query("/", description="Path to fetch")):
+    client = await get_http_client()
+    url = f"https://{domain}{path}"
+    headers = get_headers(domain)
+    
+    try:
+        response = await client.get(url, headers=headers, follow_redirects=True)
+        page_data = extract_page_data(response.text)
+        videos = parse_video_list(page_data)
+        return {
+            "status": "success",
+            "domain": domain,
+            "url": url,
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "html_length": len(response.text),
+            "html": response.text[:5000],  # First 5000 chars
+            "page_data_keys": sorted(page_data.keys()) if page_data else None,
+            "page_data": page_data,
+            "videos_found": len(videos)
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "domain": domain,
+            "url": url,
+            "error": str(e),
+            "traceback": str(e.__traceback__)
+        }
 
 @app.get("/api/clear-cache")
 def clear_cache():
@@ -397,36 +458,36 @@ def parse_video_list(html_or_soup):
         # Print search correction info if available
         if page_data:
             logger.info(f"[DEBUG] page_data keys: {sorted(page_data.keys())}")
-            import json
-            logger.info(f"[DEBUG] page_data: {json.dumps(page_data, default=str)}")
-            if 'entity' in page_data:
-                logger.info(f"[DEBUG] entity: {page_data['entity']}")
-            if 'correction' in page_data:
-                logger.info(f"[DEBUG] correction: {page_data['correction']}")
         
-        # Check multiple possible paths for videoThumbProps
+        # Check multiple possible paths for videoThumbProps - let's also search recursively for any 'videoThumbProps'
         video_thumb_props = None
+        
         if page_data:
+            # First try the known paths
             # Path 1: for trending/newest pages
             if ('layoutPage' in page_data and 
                 'videoListProps' in page_data['layoutPage'] and 
                 'videoThumbProps' in page_data['layoutPage']['videoListProps']):
                 video_thumb_props = page_data['layoutPage']['videoListProps']['videoThumbProps']
+                logger.info("Found videos in layoutPage.videoListProps.videoThumbProps")
             # Path 2: for search pages
             elif ('searchResult' in page_data and 
                   'videoThumbProps' in page_data['searchResult']):
                 video_thumb_props = page_data['searchResult']['videoThumbProps']
+                logger.info("Found videos in searchResult.videoThumbProps")
             # Path 3: for individual video pages (related videos)
             elif ('relatedVideosComponent' in page_data and 
                   'videoTabInitialData' in page_data['relatedVideosComponent'] and
                   'videoListProps' in page_data['relatedVideosComponent']['videoTabInitialData'] and
                   'videoThumbProps' in page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']):
                 video_thumb_props = page_data['relatedVideosComponent']['videoTabInitialData']['videoListProps']['videoThumbProps']
+                logger.info("Found videos in relatedVideosComponent")
             # Path 4: for category pages
             elif ('pagesCategoryComponent' in page_data and 
                   'trendingVideoListProps' in page_data['pagesCategoryComponent'] and
                   'videoThumbProps' in page_data['pagesCategoryComponent']['trendingVideoListProps']):
                 video_thumb_props = page_data['pagesCategoryComponent']['trendingVideoListProps']['videoThumbProps']
+                logger.info("Found videos in pagesCategoryComponent")
             # Path 5: for creator pages
             else:
                 # Check all possible creator video section keys
@@ -440,9 +501,34 @@ def parse_video_list(html_or_soup):
                         section_data = page_data[key]
                         if 'videoListProps' in section_data and 'videoThumbProps' in section_data['videoListProps']:
                             video_thumb_props = section_data['videoListProps']['videoThumbProps']
+                            logger.info(f"Found videos in {key}")
                             break
+            
+            # If still not found, search recursively for any 'videoThumbProps' key
+            if not video_thumb_props:
+                logger.info("Searching recursively for videoThumbProps...")
+                
+                def find_video_thumb_props(obj):
+                    if isinstance(obj, dict):
+                        for key, value in obj.items():
+                            if key == 'videoThumbProps' and isinstance(value, list):
+                                return value
+                            result = find_video_thumb_props(value)
+                            if result:
+                                return result
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            result = find_video_thumb_props(item)
+                            if result:
+                                return result
+                    return None
+                
+                video_thumb_props = find_video_thumb_props(page_data)
+                if video_thumb_props:
+                    logger.info(f"Found videos via recursive search")
         
         if video_thumb_props:
+            logger.info(f"Found {len(video_thumb_props)} video items")
             for item in video_thumb_props:
                 try:
                     title = item.get('title', '')
@@ -464,9 +550,12 @@ def parse_video_list(html_or_soup):
                             'views': views
                         })
                 except Exception as e:
+                    logger.debug(f"Error parsing video item: {e}")
                     continue
-    except Exception:
-        pass
+        else:
+            logger.warning("Could not find any videoThumbProps in page data")
+    except Exception as e:
+        logger.error(f"Error in parse_video_list: {e}", exc_info=True)
     return videos
 
 @app.get("/api/search")
