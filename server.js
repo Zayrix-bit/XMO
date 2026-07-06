@@ -231,6 +231,7 @@ async function fetchWithFallback(path, useHttps = true) {
         const client = getClient(proxy);
         for (let domain of allDomains) {
             try {
+                console.log(`[${proxy || 'DIRECT'}] Trying ${domain}${path}...`);
                 const homeUrl = `${protocol}://${domain}/`;
                 setBypassCookies(domain);
                 let headers = getHeaders(domain);
@@ -261,8 +262,17 @@ async function fetchWithFallback(path, useHttps = true) {
                 if (response.status >= 400) throw new Error(`HTTP ${response.status}`);
 
                 const pageData = extractPageData(response.data);
-                return { html: response.data, domain, pageData };
+                const isCategories = path === '/categories';
+                const vtp = findVideoThumbProps(pageData);
+                
+                if (isCategories || (vtp && vtp.length > 0) || (pageData && pageData.infoComponent)) {
+                    console.log(`[${proxy || 'DIRECT'}] Success on ${domain}${path}`);
+                    return { html: response.data, domain, pageData };
+                } else {
+                    console.log(`[${proxy || 'DIRECT'}] No valid data on ${domain}, trying next...`);
+                }
             } catch (e) {
+                console.log(`[${proxy || 'DIRECT'}] Error on ${domain}: ${e.message}`);
                 // Ignore and try next
             }
         }
