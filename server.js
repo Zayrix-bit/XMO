@@ -44,11 +44,9 @@ const _USER_AGENTS = [
 ];
 
 const XHAMSTER_DOMAINS = [
-    'xhamster.desi', 'xhamster.com', 'xhamster2.com', 'xhamster3.com', 'xhamster4.com',
-    'xhamster5.com', 'xhamster6.com', 'xhamster7.com', 'xhamster8.com', 'xhamster9.com',
-    'xhamster10.com', 'xhamster11.com', 'xhamster12.com', 'xhamster13.com', 'xhamster14.com',
-    'xhamster15.com', 'xhamster16.com', 'xhamster17.com', 'xhamster18.com', 'xhamster19.com',
-    'xhamster20.com',
+    'xhamster.com',
+    'xhamster.desi',
+    'xhamster3.com'
 ];
 
 let globalCookies = {};
