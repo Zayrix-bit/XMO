@@ -1,5 +1,4 @@
-# Base image
-FROM node:20-slim
+FROM node:20
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -7,6 +6,9 @@ WORKDIR /usr/src/app
 # Install app dependencies
 COPY package*.json ./
 RUN npm install
+
+# Install Playwright and its OS dependencies
+RUN npx playwright install --with-deps chromium
 
 # Bundle app source
 COPY . .

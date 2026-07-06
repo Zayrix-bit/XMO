@@ -226,6 +226,8 @@ function parseVideoList(pageData) {
     return videos;
 }
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 let pwBrowser = null;
 async function getBrowser() {
     if (!pwBrowser) {
