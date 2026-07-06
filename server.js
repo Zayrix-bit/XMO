@@ -8,6 +8,7 @@ const path = require('path');
 const cluster = require('cluster');
 const os = require('os');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const { chromium } = require('playwright');
 
 dotenv.config();
 
@@ -26,10 +27,10 @@ function loadProxies() {
     }
     const singleHttp = process.env.HTTP_PROXY || process.env.http_proxy;
     const singleHttps = process.env.HTTPS_PROXY || process.env.https_proxy;
-    
+
     if (singleHttp && !_proxyList.includes(singleHttp)) _proxyList.push(singleHttp);
     else if (singleHttps && !_proxyList.includes(singleHttps)) _proxyList.push(singleHttps);
-    
+
     console.log(`Loaded ${_proxyList.length} proxies from env`);
 }
 loadProxies();
@@ -46,7 +47,12 @@ const _USER_AGENTS = [
 const XHAMSTER_DOMAINS = [
     'xhamster.com',
     'xhamster.desi',
-    'xhamster3.com'
+    'xhamster1.com',
+    'xhamster2.com',
+    'xhamster3.com',
+    'xhamster4.com',
+    'xhamster5.com',
+    'xhamster18.com'
 ];
 
 let globalCookies = {};
@@ -86,6 +92,7 @@ function getHeaders(domain = 'xhamster.desi') {
         "User-Agent": ua,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
         "Referer": "https://www.google.com/",
         "DNT": "1",
         "Connection": "keep-alive",
@@ -97,7 +104,7 @@ function getHeaders(domain = 'xhamster.desi') {
         "Cache-Control": "max-age=0",
         "Cookie": getCookiesString()
     };
-    
+
     if (ua.includes("Chrome") || ua.includes("Edg")) {
         Object.assign(headers, {
             "Sec-Ch-Ua": '"Chromium";v="133", "Not_A Brand";v="24", "Google Chrome";v="133"',
@@ -128,21 +135,21 @@ function extractPageData(html) {
     $('script').each((i, el) => {
         const content = $(el).html();
         if (!content) return;
-        
+
         let startIdx = 0;
         while (true) {
             const startBrace = content.indexOf('{', startIdx);
             if (startBrace === -1) break;
-            
+
             let braceCount = 1;
             let endBrace = startBrace + 1;
-            
+
             while (endBrace < content.length && braceCount > 0) {
                 if (content[endBrace] === '{') braceCount++;
                 else if (content[endBrace] === '}') braceCount--;
                 endBrace++;
             }
-            
+
             if (braceCount === 0) {
                 const jsonStr = content.slice(startBrace, endBrace);
                 try {
@@ -152,7 +159,7 @@ function extractPageData(html) {
                         largestSize = size;
                         largestData = data;
                     }
-                } catch (e) {}
+                } catch (e) { }
             }
             startIdx = endBrace;
         }
@@ -213,58 +220,80 @@ function parseVideoList(pageData) {
                 if (link && title) {
                     videos.push({ id: videoId, title, link, image, duration, views });
                 }
-            } catch (e) {}
+            } catch (e) { }
         });
     }
     return videos;
 }
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+let pwBrowser = null;
+async function getBrowser() {
+    if (!pwBrowser) {
+        pwBrowser = await chromium.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        });
+    }
+    return pwBrowser;
+}
+
+async function fetchHtmlPlaywright(url) {
+    const browser = await getBrowser();
+    const context = await browser.newContext({
+        userAgent: _USER_AGENTS[Math.floor(Math.random() * _USER_AGENTS.length)]
+    });
+    const page = await context.newPage();
+
+    // Block resources to save memory/bandwidth
+    await page.route('**/*', route => {
+        const type = route.request().resourceType();
+        if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
+            route.abort();
+        } else {
+            route.continue();
+        }
+    });
+
+    try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        // Wait for Cloudflare challenge to pass
+        await page.waitForFunction(() => !document.title.includes('Just a moment'), { timeout: 15000 }).catch(() => {});
+        await sleep(1000); // Wait for scripts to populate data
+
+        const html = await page.content();
+        await context.close();
+        return html;
+    } catch (e) {
+        await context.close();
+        throw e;
+    }
+}
 
 async function fetchWithFallback(path, useHttps = true) {
     const protocol = useHttps ? 'https' : 'http';
     const allDomains = [...XHAMSTER_DOMAINS].sort(() => 0.5 - Math.random());
-    const proxiesToTry = [..._proxyList].sort(() => 0.5 - Math.random());
-    proxiesToTry.push(null);
+    
+    for (let domain of allDomains) {
+        try {
+            console.log(`[PW-DIRECT] Trying ${domain}${path}...`);
+            const url = `${protocol}://${domain}${path}`;
+            
+            const html = await fetchHtmlPlaywright(url);
+            
+            const pageData = extractPageData(html);
+            const isCategories = path === '/categories';
+            const vtp = findVideoThumbProps(pageData);
 
-    for (let proxy of proxiesToTry) {
-        const client = getClient(proxy);
-        for (let domain of allDomains) {
-            try {
-                console.log(`[${proxy || 'DIRECT'}] Trying ${domain}${path}...`);
-                const url = `${protocol}://${domain}${path}`;
-                setBypassCookies(domain);
-                let headers = getHeaders(domain);
-                
-                let response = await client.get(url, { headers });
-                updateCookies(response.headers['set-cookie']);
-
-                if (response.status === 200 && response.data.includes('REDIRECT_URL')) {
-                    const match = response.data.match(/const REDIRECT_URL = '([^']+)'/);
-                    if (match) {
-                        let redirectUrl = match[1];
-                        redirectUrl += "fp=-5";
-                        response = await client.get(redirectUrl, { headers });
-                        updateCookies(response.headers['set-cookie']);
-                    }
-                }
-
-                if (response.status >= 400) throw new Error(`HTTP ${response.status}`);
-
-                const pageData = extractPageData(response.data);
-                const isCategories = path === '/categories';
-                const vtp = findVideoThumbProps(pageData);
-                
-                if (isCategories || (vtp && vtp.length > 0) || (pageData && pageData.infoComponent)) {
-                    console.log(`[${proxy || 'DIRECT'}] Success on ${domain}${path}`);
-                    return { html: response.data, domain, pageData };
-                } else {
-                    console.log(`[${proxy || 'DIRECT'}] No valid data on ${domain}, trying next...`);
-                }
-            } catch (e) {
-                console.log(`[${proxy || 'DIRECT'}] Error on ${domain}: ${e.message}`);
-                // Ignore and try next
+            if (isCategories || (vtp && vtp.length > 0) || (pageData && pageData.infoComponent)) {
+                console.log(`[PW-DIRECT] Success on ${domain}${path}`);
+                return { html, domain, pageData };
+            } else {
+                console.log(`[PW-DIRECT] No valid data on ${domain}, trying next...`);
+                await sleep(1000);
             }
+        } catch (e) {
+            console.log(`[PW-DIRECT] Error on ${domain}: ${e.message}`);
+            await sleep(1000);
         }
     }
     return { html: null, domain: null, pageData: null };
@@ -277,7 +306,7 @@ function cacheResponse(ttlSeconds) {
         if (cachedResponse && (Date.now() - cachedResponse.timestamp) < ttlSeconds * 1000) {
             return res.json(cachedResponse.data);
         }
-        
+
         const originalJson = res.json;
         res.json = (body) => {
             if (body && body.status === 'success') {
@@ -318,7 +347,7 @@ app.get('/api/search', cacheResponse(3600), async (req, res) => {
 app.get('/api/trending', cacheResponse(10), async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const pathStr = page === 1 ? "/" : `/best/monthly/${page}`;
-    
+
     const { html, domain, pageData } = await fetchWithFallback(pathStr);
     if (!html) return res.status(500).json({ status: "error", message: "No working domain found" });
 
@@ -338,10 +367,10 @@ app.get('/api/newest', cacheResponse(10), async (req, res) => {
 app.get('/api/creator/:slug', cacheResponse(3600), async (req, res) => {
     const slug = req.params.slug;
     const page = parseInt(req.query.page) || 1;
-    
+
     let pathStr = `/creators/${slug}`;
     if (page > 1) pathStr += `/${page}`;
-    
+
     let result = await fetchWithFallback(pathStr);
     if (!result.html) {
         pathStr = `/users/${slug}`;
@@ -380,18 +409,18 @@ app.get('/api/categories', cacheResponse(86400), async (req, res) => {
         const cats = [];
         const langs = [];
         const seen = new Set();
-        
+
         $('a').each((i, el) => {
             const href = $(el).attr('href') || '';
             const name = $(el).text().trim() || $(el).attr('title') || '';
-            
+
             if (href.includes('/categories/') && !href.includes('/photos/') && name) {
                 const slug = href.replace(/\/$/, '').split('/').pop();
                 const imgTag = $(el).find('img');
                 const image = imgTag.attr('src') || imgTag.attr('data-src') || '';
-                
+
                 const catData = { name, slug, url: href, image };
-                
+
                 if (!seen.has(href)) {
                     seen.add(href);
                     if (name.toLowerCase().startsWith('porn in ')) langs.push(catData);
@@ -436,21 +465,15 @@ app.get('/api/video', cacheResponse(600), async (req, res) => {
     try {
         const parsedUrl = new URL(videoUrl);
         const domain = parsedUrl.hostname;
-        const proxy = _proxyList.length > 0 ? _proxyList[Math.floor(Math.random() * _proxyList.length)] : null;
-        const client = getClient(proxy);
-        setBypassCookies(domain);
-        
-        const response = await client.get(videoUrl, { headers: getHeaders(domain) });
-        updateCookies(response.headers['set-cookie']);
-        const html = response.data;
+        const html = await fetchHtmlPlaywright(videoUrl);
         const $ = cheerio.load(html);
         const pageData = extractPageData(html);
 
         let videoTitle = $('h1.with-player-container').text().trim() || $('h1').text().trim() || 'Untitled Video';
-        
+
         let views = null;
         let uploader = null;
-        
+
         if (pageData) {
             for (let viewKey of ['videoModel', 'videoEntity', 'videoHeadingComponent', 'videoTitle']) {
                 if (pageData[viewKey] && pageData[viewKey].views) {
@@ -479,7 +502,7 @@ app.get('/api/video', cacheResponse(600), async (req, res) => {
 
         let directUrl = null;
         const qualityMp4s = mp4Links.filter(u => ['1080p', '720p', '480p', '240p'].some(q => u.includes(q)));
-        
+
         if (qualityMp4s.length > 0) {
             for (let q of ['1080p', '720p', '480p', '240p']) {
                 let match = qualityMp4s.find(u => u.includes(q));
@@ -538,14 +561,14 @@ app.get('/api/proxy', async (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', '*');
-        
+
         ['content-type', 'content-length', 'content-range', 'accept-ranges', 'cache-control'].forEach(h => {
             if (response.headers[h]) res.setHeader(h, response.headers[h]);
         });
-        
+
         res.status(response.status);
         response.data.pipe(res);
-        
+
     } catch (e) {
         res.status(500).json({ status: "error", message: e.message });
     }
@@ -567,18 +590,18 @@ app.get('/api/hls-proxy', async (req, res) => {
         const proxy = _proxyList.length > 0 ? _proxyList[Math.floor(Math.random() * _proxyList.length)] : null;
         const client = getClient(proxy);
         const response = await client.get(url, { headers: proxyHeaders, responseType: 'text' });
-        
+
         let content = response.data;
         const contentType = response.headers['content-type'] || 'application/vnd.apple.mpegurl';
 
         if (url.includes('.m3u8') || contentType.toLowerCase().includes('mpegurl') || content.trim().startsWith('#EXTM3U')) {
             const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
             let rewritten = [];
-            
+
             content.split('\n').forEach(line => {
                 line = line.trim();
                 if (!line) return;
-                
+
                 if (line.startsWith('#')) {
                     if (line.includes('URI="')) {
                         const match = line.match(/URI="([^"]+)"/);
@@ -595,7 +618,7 @@ app.get('/api/hls-proxy', async (req, res) => {
                 } else {
                     let segmentUrl = line;
                     if (!segmentUrl.startsWith('http')) segmentUrl = baseUrl + segmentUrl;
-                    
+
                     const scheme = req.headers['x-forwarded-proto'] || req.protocol;
                     const host = req.headers['x-forwarded-host'] || req.get('host');
                     let proxied = "";
@@ -607,7 +630,7 @@ app.get('/api/hls-proxy', async (req, res) => {
                     rewritten.push(proxied);
                 }
             });
-            
+
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             res.send(rewritten.join('\n'));
@@ -625,7 +648,7 @@ app.get('/api/hls-proxy', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 7860;
-const numCPUs = os.cpus().length;
+const numCPUs = process.env.WORKERS ? parseInt(process.env.WORKERS) : 1; // Limited to 1 for Playwright memory usage
 
 if (cluster.isPrimary) {
     console.log(`Master Server is running. Starting ${numCPUs} workers...`);
