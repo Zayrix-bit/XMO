@@ -221,11 +221,10 @@ export default function Watch() {
     }
   };
 
-  const handleVideoClick = () => {
+  const handleVideoClick = (e) => {
     // On touch devices (mobile), tapping the screen should toggle UI controls, not pause the video.
     // The user can press the actual pause button in the UI.
-    const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-    if (isTouch) {
+    if (e.nativeEvent && e.nativeEvent.pointerType === 'touch') {
       setShowControls(prev => !prev);
       return;
     }
