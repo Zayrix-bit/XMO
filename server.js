@@ -594,8 +594,8 @@ app.get('/api/hls-proxy', async (req, res) => {
                             let origUri = match[1];
                             if (!origUri.startsWith('http')) origUri = baseUrl + origUri;
                             const proxied = `/api/hls-proxy?url=${encodeURIComponent(origUri)}`;
-                            const scheme = req.protocol;
-                            const host = req.get('host');
+                            const scheme = req.headers['x-forwarded-proto'] || req.protocol;
+                            const host = req.headers['x-forwarded-host'] || req.get('host');
                             line = line.replace(match[0], `URI="${scheme}://${host}${proxied}"`);
                         }
                     }
@@ -604,8 +604,8 @@ app.get('/api/hls-proxy', async (req, res) => {
                     let segmentUrl = line;
                     if (!segmentUrl.startsWith('http')) segmentUrl = baseUrl + segmentUrl;
                     
-                    const scheme = req.protocol;
-                    const host = req.get('host');
+                    const scheme = req.headers['x-forwarded-proto'] || req.protocol;
+                    const host = req.headers['x-forwarded-host'] || req.get('host');
                     let proxied = "";
                     if (segmentUrl.includes('.m3u8')) {
                         proxied = `${scheme}://${host}/api/hls-proxy?url=${encodeURIComponent(segmentUrl)}`;
