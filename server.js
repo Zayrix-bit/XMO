@@ -110,7 +110,7 @@ function getHeaders(domain = 'xhamster.desi') {
 
 function getClient(proxyUrl = null) {
     const config = {
-        timeout: 60000,
+        timeout: 15000, // Reduced from 60s to 15s to fail faster on bad proxies
         maxRedirects: 5,
         validateStatus: () => true,
     };
@@ -232,19 +232,10 @@ async function fetchWithFallback(path, useHttps = true) {
         for (let domain of allDomains) {
             try {
                 console.log(`[${proxy || 'DIRECT'}] Trying ${domain}${path}...`);
-                const homeUrl = `${protocol}://${domain}/`;
+                const url = `${protocol}://${domain}${path}`;
                 setBypassCookies(domain);
                 let headers = getHeaders(domain);
                 
-                await sleep(Math.random() * 700 + 300);
-                const homeRes = await client.get(homeUrl, { headers });
-                updateCookies(homeRes.headers['set-cookie']);
-
-                const url = `${protocol}://${domain}${path}`;
-                headers = getHeaders(domain);
-                headers["Referer"] = homeUrl;
-
-                await sleep(Math.random() * 1500 + 500);
                 let response = await client.get(url, { headers });
                 updateCookies(response.headers['set-cookie']);
 
@@ -253,7 +244,6 @@ async function fetchWithFallback(path, useHttps = true) {
                     if (match) {
                         let redirectUrl = match[1];
                         redirectUrl += "fp=-5";
-                        await sleep(1000);
                         response = await client.get(redirectUrl, { headers });
                         updateCookies(response.headers['set-cookie']);
                     }
@@ -446,7 +436,8 @@ app.get('/api/video', cacheResponse(600), async (req, res) => {
     try {
         const parsedUrl = new URL(videoUrl);
         const domain = parsedUrl.hostname;
-        const client = getClient();
+        const proxy = _proxyList.length > 0 ? _proxyList[Math.floor(Math.random() * _proxyList.length)] : null;
+        const client = getClient(proxy);
         setBypassCookies(domain);
         
         const response = await client.get(videoUrl, { headers: getHeaders(domain) });
@@ -481,8 +472,9 @@ app.get('/api/video', cacheResponse(600), async (req, res) => {
 
         const related = parseVideoList(pageData);
 
-        const m3u8Links = [...new Set(html.match(/https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/g) || [])];
-        const allMp4Links = [...new Set(html.match(/https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*/g) || [])];
+        const cleanHtml = html.replace(/\\\//g, '/');
+        const m3u8Links = [...new Set(cleanHtml.match(/https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/g) || [])];
+        const allMp4Links = [...new Set(cleanHtml.match(/https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*/g) || [])];
         const mp4Links = allMp4Links.filter(u => !u.includes('.m3u8') && !u.includes('thumb'));
 
         let directUrl = null;
@@ -536,7 +528,8 @@ app.get('/api/proxy', async (req, res) => {
             proxyHeaders['Range'] = req.headers.range;
         }
 
-        const client = getClient();
+        const proxy = _proxyList.length > 0 ? _proxyList[Math.floor(Math.random() * _proxyList.length)] : null;
+        const client = getClient(proxy);
         const response = await client.get(url, {
             headers: proxyHeaders,
             responseType: 'stream'
@@ -571,7 +564,8 @@ app.get('/api/hls-proxy', async (req, res) => {
         const proxyHeaders = getHeaders(refererDomain);
         proxyHeaders['Origin'] = `https://${refererDomain}`;
 
-        const client = getClient();
+        const proxy = _proxyList.length > 0 ? _proxyList[Math.floor(Math.random() * _proxyList.length)] : null;
+        const client = getClient(proxy);
         const response = await client.get(url, { headers: proxyHeaders, responseType: 'text' });
         
         let content = response.data;
