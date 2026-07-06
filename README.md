@@ -1,3 +1,11 @@
+---
+title: HM Scraper Node API
+emoji: 🎥
+colorFrom: purple
+colorTo: blue
+sdk: docker
+app_port: 7860
+---
 # Nighthub Video Platform
 
 ## Overview
@@ -14,13 +22,13 @@ The platform scrapes the following from xHamster:
 
 ## Tech Stack
 ### Backend
-- **Python 3.12+**
-- **FastAPI**: Web framework
-- **httpx**: Async HTTP client
-- **BeautifulSoup4**: HTML parsing
-- **diskcache**: Persistent caching (stores scraped data locally for faster loads)
-- **uvicorn[standard]**: ASGI server
-- **pydantic-settings**: Configuration management
+- **Node.js 18+**
+- **Express**: Web framework
+- **Axios**: Async HTTP client
+- **Cheerio**: HTML parsing
+- **node-cache/Map**: In-memory caching for faster API responses
+- **dotenv**: Environment variable management
+- **https-proxy-agent**: Handles outbound requests through proxies
 
 ### Frontend
 - **React 19.2.6**: UI library
