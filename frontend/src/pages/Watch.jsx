@@ -221,6 +221,17 @@ export default function Watch() {
     }
   };
 
+  const handleVideoClick = (e) => {
+    // On touch devices (mobile), tapping the screen should toggle UI controls, not pause the video.
+    // The user can press the actual pause button in the UI.
+    if (e.nativeEvent && e.nativeEvent.pointerType === 'touch') {
+      setShowControls(prev => !prev);
+      return;
+    }
+    // On desktop, clicking the video toggles play/pause
+    togglePlay();
+  };
+
   const toggleMute = () => {
     if (!videoRef.current) return;
     const muted = !isMuted;
@@ -601,7 +612,7 @@ export default function Watch() {
                 ref={playerContainerRef}
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseLeave}
-                onClick={togglePlay}
+                onClick={handleVideoClick}
                 onDoubleClick={handleDoubleClick}
                 className="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-white/[0.08] group select-none cursor-pointer"
               >
@@ -935,7 +946,7 @@ export default function Watch() {
                           text: 'Check out this video!',
                           url: window.location.href
                         });
-                      } catch (err) {
+                      } catch {
                         // Ignore cancel errors
                       }
                     } else {
