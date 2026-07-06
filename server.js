@@ -110,7 +110,7 @@ function getHeaders(domain = 'xhamster.desi') {
 
 function getClient(proxyUrl = null) {
     const config = {
-        timeout: 15000, // Reduced from 60s to 15s to fail faster on bad proxies
+        timeout: 30000, // Increased from 15s to 30s to allow busy proxies to respond
         maxRedirects: 5,
         validateStatus: () => true,
     };
