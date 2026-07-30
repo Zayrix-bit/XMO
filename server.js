@@ -417,8 +417,10 @@ app.get('/api/categories', cacheResponse(86400), async (req, res) => {
             'italian', 'spanish', 'brazilian', 'mexican', 'colombian', 'canadian', 'australian', 'asian', 'latina'
         ]);
 
-        const normal_cats = cats.filter(c => !COUNTRY_SLUGS.has(c.slug));
-        const country_cats = cats.filter(c => COUNTRY_SLUGS.has(c.slug));
+        const BLOCKED_SLUGS = new Set(['granny']);
+
+        const normal_cats = cats.filter(c => !COUNTRY_SLUGS.has(c.slug) && !BLOCKED_SLUGS.has(c.slug));
+        const country_cats = cats.filter(c => COUNTRY_SLUGS.has(c.slug) && !BLOCKED_SLUGS.has(c.slug));
 
         res.json({ status: "success", categories: normal_cats, countries: country_cats, languages: langs, used_domain: domain });
     } catch (e) {

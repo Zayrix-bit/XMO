@@ -74,6 +74,15 @@ export default function Home() {
     fetchData();
   }, [query, tab, page, searchParams]);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [tab, query, searchParams]);
+
+  // Frontend filter to instantly hide specific categories from the UI
+  const HIDDEN_CATEGORIES = new Set(['granny', 'old-young', 'mature', 'bbw']);
+  const displayAllCategories = allCategories.filter(cat => !HIDDEN_CATEGORIES.has(cat.slug));
+  const displayNormalCategories = normalCategories.filter(cat => !HIDDEN_CATEGORIES.has(cat.slug));
+
   const handlePageChange = (newPage) => {
     if (newPage < 1) return;
     const params = new URLSearchParams(searchParams);
@@ -162,12 +171,12 @@ export default function Home() {
       </div>
 
       {/* Limited Categories on Main Pages */}
-      {tab !== 'categories' && allCategories.length > 0 && (
+      {tab !== 'categories' && displayAllCategories.length > 0 && (
         <div className="mb-10">
           <h2 className="text-base md:text-lg font-semibold text-white mb-4">Popular Categories</h2>
           <div className="bg-[#121218]/40 border border-white/[0.04] p-2.5 md:p-4 rounded-xl">
             <div className="flex overflow-x-auto gap-2 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden">
-              {allCategories.slice(0, 20).map((cat, i) => (
+              {displayAllCategories.slice(0, 20).map((cat, i) => (
                 <Link
                   key={i}
                   to={`/?tab=category&slug=${cat.slug}`}
@@ -176,7 +185,7 @@ export default function Home() {
                   {cat.name}
                 </Link>
               ))}
-              {allCategories.length > 20 && (
+              {displayAllCategories.length > 20 && (
                 <Link
                   to="/?tab=categories"
                   className="bg-[#181822] hover:bg-[#20202c] px-3 py-1.5 rounded-lg text-[11px] sm:text-xs md:text-sm font-medium text-[#ff2a5f] hover:text-[#ff4a75] transition-all border border-white/[0.06] whitespace-nowrap flex-shrink-0 flex items-center gap-1"
@@ -192,10 +201,10 @@ export default function Home() {
       {/* Categories Grid */}
       {tab === 'categories' && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-          {normalCategories.length === 0 ? (
+          {displayNormalCategories.length === 0 ? (
             Array(24).fill(0).map((_, i) => <div key={i} className="aspect-[16/9] bg-[#121218] rounded-lg animate-pulse"></div>)
           ) : (
-            normalCategories.map((cat, i) => (
+            displayNormalCategories.map((cat, i) => (
               <Link 
                 key={i} 
                 to={`/?tab=category&slug=${cat.slug}`}
