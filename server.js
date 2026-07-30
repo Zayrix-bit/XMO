@@ -379,10 +379,9 @@ app.get('/api/creator/:slug', cacheResponse(3600), async (req, res) => {
 });
 
 app.get('/api/categories', cacheResponse(86400), async (req, res) => {
-    const { html, domain } = await fetchWithFallback('/categories');
-    if (!html) return res.status(500).json({ status: "error", message: "No working domain found" });
-
     try {
+        const { html, domain } = await fetchWithFallback('/categories');
+        if (!html) throw new Error("No HTML found");
         const $ = cheerio.load(html);
         const cats = [];
         const langs = [];
@@ -424,7 +423,26 @@ app.get('/api/categories', cacheResponse(86400), async (req, res) => {
 
         res.json({ status: "success", categories: normal_cats, countries: country_cats, languages: langs, used_domain: domain });
     } catch (e) {
-        res.status(500).json({ status: "error", message: e.message });
+        // Ultimate Fallback to prevent UI crash if xhamster scraping fails
+        const fallbackCats = [
+            { name: 'Amateur', slug: 'amateur' },
+            { name: 'Lesbian', slug: 'lesbian' },
+            { name: 'Homemade', slug: 'homemade' },
+            { name: '18 Year Old', slug: '18-year-old' },
+            { name: 'Anal', slug: 'anal' },
+            { name: 'Mom', slug: 'mom' },
+            { name: 'Creampie', slug: 'creampie' },
+            { name: '3D', slug: '3d' },
+            { name: 'Behind the Scenes', slug: 'behind-the-scenes' },
+            { name: 'Cartoon', slug: 'cartoon' },
+            { name: 'Compilation', slug: 'compilation' },
+            { name: 'Cosplay', slug: 'cosplay' },
+            { name: 'MILF', slug: 'milf' },
+            { name: 'Teens', slug: 'teens' },
+            { name: 'Bisexual', slug: 'bisexual' },
+            { name: 'VR', slug: 'vr' }
+        ];
+        res.json({ status: "success", categories: fallbackCats, countries: [], languages: [], used_domain: 'fallback' });
     }
 });
 

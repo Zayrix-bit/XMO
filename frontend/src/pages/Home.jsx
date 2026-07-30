@@ -80,8 +80,8 @@ export default function Home() {
 
   // Frontend filter to instantly hide specific categories from the UI
   const HIDDEN_CATEGORIES = new Set(['granny', 'old-young', 'mature', 'bbw']);
-  const displayAllCategories = allCategories.filter(cat => !HIDDEN_CATEGORIES.has(cat.slug));
-  const displayNormalCategories = normalCategories.filter(cat => !HIDDEN_CATEGORIES.has(cat.slug));
+  const displayAllCategories = (allCategories || []).filter(cat => !HIDDEN_CATEGORIES.has(cat.slug));
+  const displayNormalCategories = (normalCategories || []).filter(cat => !HIDDEN_CATEGORIES.has(cat.slug));
 
   const handlePageChange = (newPage) => {
     if (newPage < 1) return;
