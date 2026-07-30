@@ -39,7 +39,8 @@ export default function Watch() {
   const [activeSettingsPanel, setActiveSettingsPanel] = useState('main');
   const [subColor, setSubColor] = useState('#ffffff');
   const [subBg, setSubBg] = useState('rgba(0, 0, 0, 0.75)');
-  const [subSize, setSubSize] = useState('clamp(10px, 2.5vw, 18px)');
+  const [subSize, setSubSize] = useState('clamp(12px, 3.5vw, 24px)');
+  const [autoActiveQuality, setAutoActiveQuality] = useState('');
   const [subEnabled, setSubEnabled] = useState(false);
   const [relatedVisibleCount, setRelatedVisibleCount] = useState(10);
   const [isLiked, setIsLiked] = useState(false);
@@ -172,14 +173,8 @@ export default function Watch() {
     // Try HLS first
     if (hlsUrl && Hls.isSupported()) {
       const hls = new Hls({
-        maxBufferLength: 15,
-        maxMaxBufferLength: 30,
         startLevel: -1, // Start in Auto mode
-        capLevelToPlayerSize: true, // Prevent loading higher res than needed
-        fragLoadingMaxRetry: 5, // More retries for flaky connections
-        fragLoadingRetryDelay: 1000,
-        manifestLoadingMaxRetry: 5,
-        abrEwmaDefaultEstimate: 500000 // Lower initial bandwidth estimate (assumes slower internet initially for faster startup)
+        abrEwmaDefaultEstimate: 500000, // 500 Kbps initial estimate (forces lower quality like 480p initially)
       });
       hlsRef.current = hls;
 
@@ -200,6 +195,12 @@ export default function Watch() {
         hls.currentLevel = -1;
         
         video.play().catch(() => {});
+      });
+
+      hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+        if (hls.levels && hls.levels[data.level]) {
+          setAutoActiveQuality(`${hls.levels[data.level].height}p`);
+        }
       });
 
       hls.on(Hls.Events.ERROR, (_, data) => {
@@ -811,7 +812,7 @@ export default function Watch() {
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                           {qualities.length > 0 && (
                             <span id="quality-badge" className="quality-badge" style={{ display: 'inline-flex' }}>
-                              {currentQuality === -1 ? 'Auto' : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}
+                              {currentQuality === -1 ? `Auto ${autoActiveQuality ? `(${autoActiveQuality})` : ''}` : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}
                             </span>
                           )}
                         </button>
@@ -824,7 +825,7 @@ export default function Watch() {
                                 {qualities.length > 0 && (
                                   <button className="settings-item" onClick={() => setActiveSettingsPanel('quality')}>
                                     <span>Quality</span>
-                                    <span className="settings-val">{currentQuality === -1 ? 'Auto' : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}</span>
+                                    <span className="settings-val">{currentQuality === -1 ? `Auto ${autoActiveQuality ? `(${autoActiveQuality})` : ''}` : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}</span>
                                   </button>
                                 )}
                                 <button className="settings-item" onClick={() => setActiveSettingsPanel('subs')}>
@@ -845,7 +846,7 @@ export default function Watch() {
                                     onClick={() => { switchQuality(-1); setShowSettingsMenu(false); }}
                                     className={`menu-option ${currentQuality === -1 ? 'active' : ''}`}
                                   >
-                                    Auto {currentQuality === -1 && <Check className="w-3 h-3 ml-2 inline-block" />}
+                                    Auto {currentQuality === -1 && autoActiveQuality ? `(${autoActiveQuality})` : ''} {currentQuality === -1 && <Check className="w-3 h-3 ml-2 inline-block" />}
                                   </button>
                                   {[...qualities].sort((a, b) => b.height - a.height).map((q) => (
                                     <button
