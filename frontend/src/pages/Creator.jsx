@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import api from '../services/api';
-import { ArrowLeft, Clock, Play, Eye, User } from 'lucide-react';
+import { ArrowLeft, Clock, Eye, User } from 'lucide-react';
 import HoverPreview from '../components/HoverPreview';
 
 export default function Creator() {
@@ -164,11 +164,7 @@ export default function Creator() {
                 {video.image && (
                   <HoverPreview video={video} />
                 )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-all duration-300">
-                    <Play className="w-4 h-4 text-white ml-1" />
-                  </div>
-                </div>
+
                 {video.duration && (
                   <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md px-2 py-1 rounded text-xs font-semibold text-white flex items-center gap-1">
                     <Clock className="w-3 h-3 text-[#ff2a5f]" /> {video.duration}

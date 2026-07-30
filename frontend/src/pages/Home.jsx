@@ -294,11 +294,7 @@ export default function Home() {
                           <Play className="w-8 h-8 text-gray-600" />
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-[#ff2a5f]/95 flex items-center justify-center shadow-lg">
-                          <Play className="w-7 h-7 md:w-8 md:h-8 text-white ml-1" />
-                        </div>
-                      </div>
+
                       {video.duration && (
                         <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 rounded text-xs font-semibold text-white">
                           {video.duration}

@@ -1134,11 +1134,7 @@ export default function Watch() {
                             {video.image && (
                               <HoverPreview video={video} />
                             )}
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <div className="w-7 h-7 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-all duration-300">
-                                <Play className="w-3 h-3 text-white ml-0.5" />
-                              </div>
-                            </div>
+
                             {video.duration && (
                               <div className="absolute bottom-0.5 right-0.5 bg-black/85 backdrop-blur-md px-1.5 py-0.5 rounded-md text-[9px] font-semibold text-white flex items-center gap-0.5">
                                 <Clock className="w-2 h-2 text-[#ff2a5f]" /> {video.duration}
