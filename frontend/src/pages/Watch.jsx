@@ -23,13 +23,35 @@ export default function Watch() {
   const hlsRef = useRef(null);
   const [qualities, setQualities] = useState([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
-  const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showSettingsMenu && !e.target.closest('#anchor-settings')) {
+        setShowSettingsMenu(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showSettingsMenu]);
+
+  const [activeSettingsPanel, setActiveSettingsPanel] = useState('main');
+  const [subColor, setSubColor] = useState('#ffffff');
+  const [subBg, setSubBg] = useState('rgba(0, 0, 0, 0.75)');
+  const [subSize, setSubSize] = useState('clamp(10px, 2.5vw, 18px)');
+  const [subEnabled, setSubEnabled] = useState(false);
   const [relatedVisibleCount, setRelatedVisibleCount] = useState(10);
   const [isLiked, setIsLiked] = useState(false);
   const [titleExpanded, setTitleExpanded] = useState(false);
   const [scrubTime, setScrubTime] = useState(null); // Time to preview
   const [isScrubbing, setIsScrubbing] = useState(false);
   const canvasRef = useRef(null);
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sub-color', subColor);
+    document.documentElement.style.setProperty('--sub-bg', subBg);
+    document.documentElement.style.setProperty('--sub-size', subSize);
+  }, [subColor, subBg, subSize]);
+  
   const wasPlayingRef = useRef(false);
   
   // Creator data
@@ -149,8 +171,14 @@ export default function Watch() {
     // Try HLS first
     if (hlsUrl && Hls.isSupported()) {
       const hls = new Hls({
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
+        maxBufferLength: 15,
+        maxMaxBufferLength: 30,
+        startLevel: -1, // Start in Auto mode
+        capLevelToPlayerSize: true, // Prevent loading higher res than needed
+        fragLoadingMaxRetry: 5, // More retries for flaky connections
+        fragLoadingRetryDelay: 1000,
+        manifestLoadingMaxRetry: 5,
+        abrEwmaDefaultEstimate: 500000 // Lower initial bandwidth estimate (assumes slower internet initially for faster startup)
       });
       hlsRef.current = hls;
 
@@ -165,18 +193,10 @@ export default function Watch() {
         }));
         setQualities(levels);
         
-        // Find default quality (720p, fallback to 480p, then auto)
-        let defaultQuality = levels.find(l => l.height === 720);
-        if (!defaultQuality) {
-          defaultQuality = levels.find(l => l.height === 480);
-        }
-        
-        if (defaultQuality) {
-          setCurrentQuality(defaultQuality.index);
-          hls.currentLevel = defaultQuality.index;
-        } else {
-          setCurrentQuality(-1); // auto if preferred qualities not available
-        }
+        // Smart default: Set to Auto (-1) for Adaptive Bitrate (ABR)
+        // This ensures users with slow internet won't get stuck buffering 720p
+        setCurrentQuality(-1);
+        hls.currentLevel = -1;
         
         video.play().catch(() => {});
       });
@@ -212,6 +232,7 @@ export default function Watch() {
 
   // Video Action Helper Functions
   const togglePlay = () => {
+    setShowSettingsMenu(false);
     if (!videoRef.current) return;
     if (isPlaying) {
       videoRef.current.pause();
@@ -221,6 +242,7 @@ export default function Watch() {
   };
 
   const handleVideoClick = () => {
+    setShowSettingsMenu(false);
     const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     
     // On touch devices (mobile), tapping the screen should toggle UI controls.
@@ -280,7 +302,7 @@ export default function Watch() {
       hlsRef.current.currentLevel = levelIndex;
       setCurrentQuality(levelIndex);
     }
-    setShowQualityMenu(false);
+    setShowSettingsMenu(false);
   };
 
   // Skip 10s Double-Click Handler
@@ -774,33 +796,60 @@ export default function Watch() {
                       </span>
                     </div>
 
-                    <div className="controls-right">
-                      {/* Settings (Quality) */}
-                      {qualities.length > 0 && (
-                        <div className="dropdown-anchor" id="anchor-settings">
-                          <button id="btn-settings" className="ctrl-btn" title="Settings" onClick={() => setShowQualityMenu(!showQualityMenu)}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                            <span id="quality-badge" className="quality-badge" style={{ display: 'inline-flex' }}>{currentQuality === -1 ? 'Auto' : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}</span>
-                          </button>
-                          
-                          {showQualityMenu && (
-                            <div id="menu-settings" className="dropdown-menu" style={{ width: '220px', padding: 0 }}>
+                                        <div className="controls-right">
+                      {/* Settings */}
+                      <div className="dropdown-anchor" id="anchor-settings">
+                        <button id="btn-settings" className="ctrl-btn" title="Settings" onClick={() => {
+                          if (showSettingsMenu) {
+                            setShowSettingsMenu(false);
+                          } else {
+                            setShowSettingsMenu(true);
+                            setActiveSettingsPanel('main');
+                          }
+                        }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                          {qualities.length > 0 && (
+                            <span id="quality-badge" className="quality-badge" style={{ display: 'inline-flex' }}>
+                              {currentQuality === -1 ? 'Auto' : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}
+                            </span>
+                          )}
+                        </button>
+                        
+                        {showSettingsMenu && (
+                          <div id="menu-settings" className="dropdown-menu" style={{ width: '220px', padding: 0 }}>
+                            {activeSettingsPanel === 'main' && (
+                              <div id="panel-main" className="settings-panel">
+                                <div className="menu-title" style={{ padding: '10px 14px 4px' }}>Settings</div>
+                                {qualities.length > 0 && (
+                                  <button className="settings-item" onClick={() => setActiveSettingsPanel('quality')}>
+                                    <span>Quality</span>
+                                    <span className="settings-val">{currentQuality === -1 ? 'Auto' : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}</span>
+                                  </button>
+                                )}
+                                <button className="settings-item" onClick={() => setActiveSettingsPanel('subs')}>
+                                  <span>Captions</span>
+                                  <span className="settings-val">{subEnabled ? 'On' : 'Off'}</span>
+                                </button>
+                              </div>
+                            )}
+
+                            {activeSettingsPanel === 'quality' && (
                               <div id="panel-quality" className="settings-panel">
-                                <button className="settings-back-btn" id="btn-back-quality" onClick={() => setShowQualityMenu(false)}>
+                                <button className="settings-back-btn" onClick={() => setActiveSettingsPanel('main')}>
                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                                   Quality
                                 </button>
-                                <div id="quality-options" className="menu-options" style={{ paddingBottom: '8px' }}>
+                                <div className="menu-options" style={{ paddingBottom: '8px' }}>
                                   <button
-                                    onClick={() => switchQuality(-1)}
+                                    onClick={() => { switchQuality(-1); setShowSettingsMenu(false); }}
                                     className={`menu-option ${currentQuality === -1 ? 'active' : ''}`}
                                   >
                                     Auto {currentQuality === -1 && <Check className="w-3 h-3 ml-2 inline-block" />}
                                   </button>
-                                  {qualities.sort((a, b) => b.height - a.height).map((q) => (
+                                  {[...qualities].sort((a, b) => b.height - a.height).map((q) => (
                                     <button
                                       key={q.index}
-                                      onClick={() => switchQuality(q.index)}
+                                      onClick={() => { switchQuality(q.index); setShowSettingsMenu(false); }}
                                       className={`menu-option ${currentQuality === q.index ? 'active' : ''}`}
                                     >
                                       {q.label} {currentQuality === q.index && <Check className="w-3 h-3 ml-2 inline-block" />}
@@ -808,10 +857,53 @@ export default function Watch() {
                                   ))}
                                 </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                            )}
+
+                            {activeSettingsPanel === 'subs' && (
+                              <div id="panel-subs" className="settings-panel">
+                                <button className="settings-back-btn" onClick={() => setActiveSettingsPanel('main')}>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                  Captions
+                                </button>
+                                <button className="settings-item" style={{ marginBottom: '4px', paddingTop: '4px' }} onClick={() => setActiveSettingsPanel('sub-settings')}>
+                                  <span>Subtitle Settings</span>
+                                </button>
+                                <hr style={{ border: 0, borderTop: '1px solid rgba(255,255,255,0.1)', margin: '0 14px 4px' }} />
+                                <div className="menu-options" style={{ paddingBottom: '8px' }}>
+                                  <button onClick={() => setSubEnabled(false)} className={`menu-option ${!subEnabled ? 'active' : ''}`}>Off</button>
+                                  <button onClick={() => setSubEnabled(true)} className={`menu-option ${subEnabled ? 'active' : ''}`}>On</button>
+                                </div>
+                              </div>
+                            )}
+
+                            {activeSettingsPanel === 'sub-settings' && (
+                              <div id="panel-sub-settings" className="settings-panel">
+                                <button className="settings-back-btn" onClick={() => setActiveSettingsPanel('subs')}>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                  Subtitle Settings
+                                </button>
+                                <div className="menu-options" style={{ paddingBottom: '8px', maxHeight: '250px', overflowY: 'auto' }}>
+                                  <div className="menu-title" style={{ padding: '8px 14px 4px', fontSize: '11px', opacity: 0.7 }}>COLOR</div>
+                                  <button className={`menu-option ${subColor === '#ffffff' ? 'active' : ''}`} onClick={() => setSubColor('#ffffff')}>White</button>
+                                  <button className={`menu-option ${subColor === '#ffff00' ? 'active' : ''}`} onClick={() => setSubColor('#ffff00')}>Yellow</button>
+                                  <button className={`menu-option ${subColor === '#00ffff' ? 'active' : ''}`} onClick={() => setSubColor('#00ffff')}>Cyan</button>
+                                  <button className={`menu-option ${subColor === '#00ff00' ? 'active' : ''}`} onClick={() => setSubColor('#00ff00')}>Green</button>
+                                  
+                                  <div className="menu-title" style={{ padding: '8px 14px 4px', fontSize: '11px', opacity: 0.7 }}>BACKGROUND</div>
+                                  <button className={`menu-option ${subBg === 'rgba(0, 0, 0, 0)' ? 'active' : ''}`} onClick={() => setSubBg('rgba(0, 0, 0, 0)')}>Transparent</button>
+                                  <button className={`menu-option ${subBg === 'rgba(0, 0, 0, 0.75)' ? 'active' : ''}`} onClick={() => setSubBg('rgba(0, 0, 0, 0.75)')}>Semi-Transparent</button>
+                                  <button className={`menu-option ${subBg === 'rgba(0, 0, 0, 1)' ? 'active' : ''}`} onClick={() => setSubBg('rgba(0, 0, 0, 1)')}>Solid Black</button>
+                                  
+                                  <div className="menu-title" style={{ padding: '8px 14px 4px', fontSize: '11px', opacity: 0.7 }}>SIZE</div>
+                                  <button className={`menu-option ${subSize === 'clamp(10px, 2.5vw, 18px)' ? 'active' : ''}`} onClick={() => setSubSize('clamp(10px, 2.5vw, 18px)')}>Small</button>
+                                  <button className={`menu-option ${subSize === 'clamp(12px, 3.5vw, 24px)' ? 'active' : ''}`} onClick={() => setSubSize('clamp(12px, 3.5vw, 24px)')}>Normal</button>
+                                  <button className={`menu-option ${subSize === 'clamp(16px, 4.5vw, 32px)' ? 'active' : ''}`} onClick={() => setSubSize('clamp(16px, 4.5vw, 32px)')}>Large</button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       {/* Fullscreen */}
                       <button id="btn-fullscreen" className="ctrl-btn" title="Fullscreen (F)" onClick={toggleFullscreen}>
