@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Play } from 'lucide-react';
 
 export default function HoverPreview({ video }) {
@@ -7,6 +7,24 @@ export default function HoverPreview({ video }) {
 
   const touchTimer = useRef(null);
   const isLongPress = useRef(false);
+  const isStickyPreview = useRef(false);
+
+  useEffect(() => {
+    const handlePreviewStarted = (e) => {
+      // If another video started its preview, stop ours
+      if (e.detail !== video.link) {
+        isStickyPreview.current = false;
+        setIsHovered(false);
+        if (videoRef.current) {
+          videoRef.current.pause();
+          videoRef.current.currentTime = 0;
+        }
+      }
+    };
+    
+    window.addEventListener('previewStarted', handlePreviewStarted);
+    return () => window.removeEventListener('previewStarted', handlePreviewStarted);
+  }, [video.link]);
 
   const handleMouseEnter = () => {
     setIsHovered(true);
@@ -16,10 +34,12 @@ export default function HoverPreview({ video }) {
   };
 
   const handleMouseLeave = () => {
-    setIsHovered(false);
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
+    if (!isStickyPreview.current) {
+      setIsHovered(false);
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+      }
     }
   };
 
@@ -27,7 +47,12 @@ export default function HoverPreview({ video }) {
     isLongPress.current = false;
     touchTimer.current = setTimeout(() => {
       isLongPress.current = true;
+      isStickyPreview.current = true;
       setIsHovered(true);
+      
+      // Dispatch event to stop other previews
+      window.dispatchEvent(new CustomEvent('previewStarted', { detail: video.link }));
+
       if (videoRef.current) {
         videoRef.current.play().catch(() => {});
       }
@@ -38,7 +63,8 @@ export default function HoverPreview({ video }) {
     if (touchTimer.current) {
       clearTimeout(touchTimer.current);
     }
-    if (isHovered) {
+    // Only stop if it hasn't become a sticky preview yet
+    if (isHovered && !isStickyPreview.current) {
       setIsHovered(false);
       if (videoRef.current) {
         videoRef.current.pause();
