@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import '../player.css';
 import api from '../services/api';
 import Hls from 'hls.js';
-import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, Pause, Volume2, VolumeX, Maximize, Minimize, Loader2, ChevronLeft, ChevronRight, RotateCcw, RotateCw, Eye, User, Download } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, AlertCircle, Check, Eye, User, Download, Play, Clock, ChevronDown } from 'lucide-react';
 
 function SkeletonVideo() {
   return (
@@ -266,13 +267,6 @@ export default function Watch() {
     }
   };
 
-  const handleSeek = (e) => {
-    const val = parseFloat(e.target.value);
-    setCurrentTime(val);
-    if (videoRef.current) {
-      videoRef.current.currentTime = Math.max(val, 5);
-    }
-  };
 
   const formatTime = (secs) => {
     if (isNaN(secs) || secs < 0) return '0:00';
@@ -592,201 +586,174 @@ export default function Watch() {
           <div className="flex flex-col gap-10 items-start w-full">
             {/* Top Section: Video Player & Video Details */}
             <div className="w-full space-y-4">
+              
               {/* Video Player Wrapper Container */}
               <div 
                 ref={playerContainerRef}
+                id="player-wrapper" 
+                className={`player-wrapper w-full aspect-video rounded-lg overflow-hidden border border-white/[0.08] ${showControls ? 'controls-visible' : 'controls-hidden'}`}
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseLeave}
-                onClick={handleVideoClick}
-                onDoubleClick={handleDoubleClick}
-                className="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-white/[0.08] group select-none cursor-pointer"
               >
-                <video
+                {/* Video Element */}
+                <video 
                   ref={videoRef}
-                  className="w-full h-full object-contain"
-                  autoPlay
-                  playsInline
+                  id="video" 
+                  crossOrigin="anonymous" 
+                  playsInline 
                   preload="auto"
+                  autoPlay
                   poster={videoData.related?.[0]?.image || ''}
-                />
+                ></video>
 
-                {/* Double Click Skip Animation Overlay */}
+                {/* Click area for play/pause toggle */}
+                <div id="click-area" className="click-area" onClick={handleVideoClick} onDoubleClick={handleDoubleClick}></div>
+
+                {/* Gradient overlays for controls visibility */}
+                <div id="gradient-top" className={`gradient gradient-top ${showControls ? '' : 'hidden'}`}></div>
+                <div id="gradient-bottom" className={`gradient gradient-bottom ${showControls ? '' : 'hidden'}`}></div>
+
+                {/* Loading Overlay */}
+                {isBuffering && (
+                  <div id="overlay-loading" className="overlay">
+                    <div className="loader-ring">
+                      <div></div><div></div><div></div><div></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Double Tap Ripple Indicators */}
                 {showLeftRipple && (
-                  <div className="absolute inset-y-0 left-0 w-1/3 bg-white/5 backdrop-blur-[0.5px] flex items-center justify-center rounded-l-xl pointer-events-none z-20 ripple-animate">
-                    <div className="flex flex-col items-center gap-1 bg-black/45 px-4 py-3 rounded-full border border-white/5">
-                      <div className="flex gap-0.5">
-                        <ChevronLeft className="w-5 h-5 text-white animate-pulse" />
-                        <ChevronLeft className="w-5 h-5 text-white" />
-                      </div>
-                      <span className="text-[9px] font-extrabold text-white tracking-widest uppercase">-10s</span>
+                  <div id="dt-left" className="dt-indicator dt-left">
+                    <div className="dt-ripple"></div>
+                    <div className="dt-icon">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="white"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
+                      <span>10s</span>
                     </div>
                   </div>
                 )}
                 {showRightRipple && (
-                  <div className="absolute inset-y-0 right-0 w-1/3 bg-white/5 backdrop-blur-[0.5px] flex items-center justify-center rounded-r-xl pointer-events-none z-20 ripple-animate">
-                    <div className="flex flex-col items-center gap-1 bg-black/45 px-4 py-3 rounded-full border border-white/5">
-                      <div className="flex gap-0.5">
-                        <ChevronRight className="w-5 h-5 text-white" />
-                        <ChevronRight className="w-5 h-5 text-white animate-pulse" />
-                      </div>
-                      <span className="text-[9px] font-extrabold text-white tracking-widest uppercase">+10s</span>
+                  <div id="dt-right" className="dt-indicator dt-right">
+                    <div className="dt-ripple"></div>
+                    <div className="dt-icon">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="white"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>
+                      <span>10s</span>
                     </div>
                   </div>
                 )}
+                
+                {/* Top bar with title */}
+                <div id="top-bar" className={`top-bar ${showControls ? '' : 'hidden'}`}>
+                  <span id="video-title" className="video-title">{videoData.title}</span>
+                </div>
 
-                <style>{`
-                  @keyframes rippleFade {
-                    0% { opacity: 0; transform: scale(0.9); }
-                    15% { opacity: 1; transform: scale(1); }
-                    80% { opacity: 1; transform: scale(1); }
-                    100% { opacity: 0; transform: scale(0.95); }
-                  }
-                  .ripple-animate {
-                    animation: rippleFade 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-                  }
-                `}</style>
-
-                {/* Buffering/Loading Indicator */}
-                {isBuffering && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/35 pointer-events-none z-10">
-                    <Loader2 className="w-10 h-10 md:w-12 md:h-12 text-[#ff2a5f] animate-spin" />
-                  </div>
-                )}
-
-                {/* Custom Overlay Controls */}
-                <div 
-                  onClick={(e) => e.stopPropagation()}
-                  onDoubleClick={(e) => e.stopPropagation()}
-                  className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3 md:p-4 transition-all duration-300 ${
-                    showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 pointer-events-none'
-                  }`}
-                >
-
-                  {/* Timeline (Progress Bar) */}
-                  <div className="w-full mb-3 flex flex-col items-center group/timeline">
-                    {/* Scrubbing Preview */}
+                {/* Bottom Controls */}
+                <div id="controls" className={`controls ${showControls ? '' : 'hidden'}`} onClick={(e) => e.stopPropagation()}>
+                  {/* Progress / Seek Bar */}
+                  <div className="seek-container" id="seek-container"
+                       onMouseDown={(e) => {
+                         setIsScrubbing(true);
+                         const rect = e.currentTarget.getBoundingClientRect();
+                         const pos = (e.clientX - rect.left) / rect.width;
+                         const scrubVal = 5 + pos * (duration - 5);
+                         setScrubTime(scrubVal);
+                         setCurrentTime(scrubVal);
+                         if (videoRef.current) videoRef.current.currentTime = scrubVal;
+                       }}
+                       onMouseMove={(e) => {
+                         if (isScrubbing) {
+                           const rect = e.currentTarget.getBoundingClientRect();
+                           let pos = (e.clientX - rect.left) / rect.width;
+                           if (pos < 0) pos = 0;
+                           if (pos > 1) pos = 1;
+                           const scrubVal = 5 + pos * (duration - 5);
+                           setScrubTime(scrubVal);
+                           setCurrentTime(scrubVal);
+                           if (videoRef.current) videoRef.current.currentTime = scrubVal;
+                         }
+                       }}
+                       onMouseUp={() => setIsScrubbing(false)}
+                       onMouseLeave={() => setIsScrubbing(false)}
+                       onTouchStart={(e) => {
+                         setIsScrubbing(true);
+                         if (e.touches[0]) {
+                           const rect = e.currentTarget.getBoundingClientRect();
+                           const pos = (e.touches[0].clientX - rect.left) / rect.width;
+                           const scrubVal = 5 + pos * (duration - 5);
+                           setScrubTime(scrubVal);
+                           setCurrentTime(scrubVal);
+                           if (videoRef.current) videoRef.current.currentTime = scrubVal;
+                         }
+                       }}
+                       onTouchMove={(e) => {
+                         if (isScrubbing && e.touches[0]) {
+                           const rect = e.currentTarget.getBoundingClientRect();
+                           let pos = (e.touches[0].clientX - rect.left) / rect.width;
+                           if (pos < 0) pos = 0;
+                           if (pos > 1) pos = 1;
+                           const scrubVal = 5 + pos * (duration - 5);
+                           setScrubTime(scrubVal);
+                           setCurrentTime(scrubVal);
+                           if (videoRef.current) videoRef.current.currentTime = scrubVal;
+                         }
+                       }}
+                       onTouchEnd={() => setIsScrubbing(false)}
+                  >
+                    <div className="seek-track">
+                      <div id="seek-buffered" className="seek-fill seek-buffered"></div>
+                      <div id="seek-played" className="seek-fill seek-played" style={{ width: `${duration > 5 ? ((currentTime - 5) / (duration - 5)) * 100 : 0}%` }}></div>
+                      <div id="seek-thumb" className="seek-thumb" style={{ left: `${duration > 5 ? ((currentTime - 5) / (duration - 5)) * 100 : 0}%` }}></div>
+                    </div>
                     {isScrubbing && scrubTime !== null && (
-                      <div className="mb-2 flex flex-col items-center">
-                        <div className="w-40 aspect-video bg-black rounded-lg overflow-hidden border border-white/20">
-                          <canvas ref={canvasRef} width="160" height="90" className="w-full h-full" />
-                        </div>
-                        <span className="text-xs text-white mt-1 bg-black/50 px-2 py-0.5 rounded">
-                          {formatTime(scrubTime)}
-                        </span>
+                      <div id="seek-tooltip" className="seek-tooltip" style={{ opacity: 1, left: `${duration > 5 ? ((scrubTime - 5) / (duration - 5)) * 100 : 0}%` }}>
+                        {formatTime(scrubTime)}
                       </div>
                     )}
-
-                    <input
-                      type="range"
-                      min={5}
-                      max={duration || 100}
-                      value={Math.max(currentTime, 5)}
-                      onChange={handleSeek}
-                      onMouseDown={(e) => {
-                        setIsScrubbing(true);
-                        const rect = e.target.getBoundingClientRect();
-                        const pos = (e.clientX - rect.left) / rect.width;
-                        const scrubVal = 5 + pos * (duration - 5);
-                        setScrubTime(scrubVal);
-                        setCurrentTime(scrubVal);
-                        if (videoRef.current) videoRef.current.currentTime = scrubVal;
-                      }}
-                      onMouseMove={(e) => {
-                        if (isScrubbing) {
-                          const rect = e.target.getBoundingClientRect();
-                          const pos = (e.clientX - rect.left) / rect.width;
-                          const scrubVal = 5 + pos * (duration - 5);
-                          setScrubTime(scrubVal);
-                          setCurrentTime(scrubVal);
-                          if (videoRef.current) videoRef.current.currentTime = scrubVal;
-                        }
-                      }}
-                      onMouseUp={() => setIsScrubbing(false)}
-                      onMouseLeave={() => setIsScrubbing(false)}
-                      onTouchStart={(e) => {
-                        setIsScrubbing(true);
-                        if (e.touches[0]) {
-                          const rect = e.target.getBoundingClientRect();
-                          const pos = (e.touches[0].clientX - rect.left) / rect.width;
-                          const scrubVal = 5 + pos * (duration - 5);
-                          setScrubTime(scrubVal);
-                          setCurrentTime(scrubVal);
-                          if (videoRef.current) videoRef.current.currentTime = scrubVal;
-                        }
-                      }}
-                      onTouchMove={(e) => {
-                        if (isScrubbing && e.touches[0]) {
-                          const rect = e.target.getBoundingClientRect();
-                          const pos = (e.touches[0].clientX - rect.left) / rect.width;
-                          const scrubVal = 5 + pos * (duration - 5);
-                          setScrubTime(scrubVal);
-                          setCurrentTime(scrubVal);
-                          if (videoRef.current) videoRef.current.currentTime = scrubVal;
-                        }
-                      }}
-                      onTouchEnd={() => setIsScrubbing(false)}
-                      className="w-full h-1 rounded-full appearance-none cursor-pointer outline-none bg-white/20 accent-[#ff2a5f] transition-all hover:h-1.5 focus:outline-none"
-                      style={{
-                        background: `linear-gradient(to right, #ff2a5f 0%, #ff2a5f ${
-                          duration > 5 ? ((currentTime - 5) / (duration - 5)) * 100 : 0
-                        }%, rgba(255, 255, 255, 0.2) ${
-                          duration > 5 ? ((currentTime - 5) / (duration - 5)) * 100 : 0
-                        }%, rgba(255, 255, 255, 0.2) 100%)`,
-                      }}
-                    />
                   </div>
 
-                  {/* Playback Controls Row */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 md:gap-4">
-                      {/* Skip Back Button */}
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (videoRef.current) {
-                            videoRef.current.currentTime = Math.max(videoRef.current.currentTime - 10, 5);
-                            triggerControls();
-                          }
-                        }}
-                        title="Rewind 10s"
-                        className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
-                      >
-                        <RotateCcw className="w-4 h-4 md:w-5 md:h-5" />
+                  {/* Control buttons row */}
+                  <div className="controls-row">
+                    <div className="controls-left">
+                      {/* Rewind 10s */}
+                      <button id="btn-rewind" className="ctrl-btn" title="Rewind 10s" onClick={(e) => {
+                        e.stopPropagation();
+                        if (videoRef.current) {
+                          videoRef.current.currentTime = Math.max(videoRef.current.currentTime - 10, 5);
+                          triggerControls();
+                        }
+                      }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
                       </button>
 
-                      {/* Play/Pause Button */}
-                      <button 
-                        onClick={togglePlay}
-                        className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
-                      >
-                        {isPlaying ? <Pause className="w-5 h-5 md:w-6 md:h-6" /> : <Play className="w-5 h-5 md:w-6 md:h-6 fill-current" />}
+                      {/* Play / Pause */}
+                      <button id="btn-play" className="ctrl-btn" title="Play (Space)" onClick={togglePlay}>
+                        {!isPlaying ? (
+                          <svg id="icon-play" width="22" height="22" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        ) : (
+                          <svg id="icon-pause" width="22" height="22" viewBox="0 0 24 24" fill="white"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                        )}
                       </button>
 
-                      {/* Skip Forward Button */}
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (videoRef.current) {
-                            videoRef.current.currentTime = Math.min(videoRef.current.currentTime + 10, videoRef.current.duration || 0);
-                            triggerControls();
-                          }
-                        }}
-                        title="Forward 10s"
-                        className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
-                      >
-                        <RotateCw className="w-4 h-4 md:w-5 md:h-5" />
+                      {/* Forward 10s */}
+                      <button id="btn-forward" className="ctrl-btn" title="Forward 10s" onClick={(e) => {
+                        e.stopPropagation();
+                        if (videoRef.current) {
+                          videoRef.current.currentTime = Math.min(videoRef.current.currentTime + 10, videoRef.current.duration || 0);
+                          triggerControls();
+                        }
+                      }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>
                       </button>
 
-                      {/* Volume Slider Section */}
-                      <div className="flex items-center gap-2 group/volume">
-                        <button 
-                          onClick={toggleMute}
-                          className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
-                        >
-                          {isMuted || volume === 0 ? (
-                            <VolumeX className="w-4 h-4 md:w-5 md:h-5" />
+                      {/* Volume */}
+                      <div className="volume-area" id="volume-area">
+                        <button id="btn-mute" className="ctrl-btn" title="Mute (M)" onClick={toggleMute}>
+                          {(isMuted || volume === 0) ? (
+                            <svg id="icon-vol-mute" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                          ) : volume < 0.5 ? (
+                            <svg id="icon-vol-low" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
                           ) : (
-                            <Volume2 className="w-4 h-4 md:w-5 md:h-5" />
+                            <svg id="icon-vol-high" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
                           )}
                         </button>
                         <input
@@ -796,61 +763,63 @@ export default function Watch() {
                           step={0.05}
                           value={isMuted ? 0 : volume}
                           onChange={handleVolumeChange}
-                          className="w-0 opacity-0 group-hover/volume:w-14 md:group-hover/volume:w-18 group-hover/volume:opacity-100 transition-all duration-300 h-1 rounded-full appearance-none bg-white/30 accent-[#ff2a5f] cursor-pointer"
+                          style={{ marginLeft: '10px', width: '80px' }}
+                          className="w-0 opacity-0 group-hover/volume:w-14 md:group-hover/volume:w-18 group-hover/volume:opacity-100 transition-all duration-300 h-1 rounded-full appearance-none bg-white/30 accent-[#ff2a5f] cursor-pointer hidden md:block"
                         />
                       </div>
 
-                      {/* Time Duration Label */}
-                      <div className="text-white text-[10px] md:text-xs font-semibold tracking-wide">
-                        {formatTime(Math.max(currentTime - 5, 0))} <span className="text-white/40 mx-1">/</span> {formatTime(Math.max(duration - 5, 0))}
-                      </div>
+                      {/* Time Display */}
+                      <span id="time-display" className="time-display" style={{ marginLeft: '10px' }}>
+                        {formatTime(Math.max(currentTime - 5, 0))} / {formatTime(Math.max(duration - 5, 0))}
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-3 md:gap-4">
-                      {/* Quality Selector Pop-up Menu */}
+                    <div className="controls-right">
+                      {/* Settings (Quality) */}
                       {qualities.length > 0 && (
-                        <div className="relative">
-                          <button
-                            onClick={() => setShowQualityMenu(!showQualityMenu)}
-                            className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none flex items-center gap-1.5 text-[10px] md:text-xs font-bold bg-white/10 hover:bg-white/15 px-2.5 py-1.5 rounded-lg border border-white/5"
-                          >
-                            <Settings className="w-3.5 h-3.5" />
-                            {currentQuality === -1 ? 'Auto' : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}
+                        <div className="dropdown-anchor" id="anchor-settings">
+                          <button id="btn-settings" className="ctrl-btn" title="Settings" onClick={() => setShowQualityMenu(!showQualityMenu)}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            <span id="quality-badge" className="quality-badge" style={{ display: 'inline-flex' }}>{currentQuality === -1 ? 'Auto' : qualities.find(q => q.index === currentQuality)?.label || 'Auto'}</span>
                           </button>
-
+                          
                           {showQualityMenu && (
-                            <div className="absolute bottom-full right-0 mb-2 bg-black/90 backdrop-blur-xl border border-white/15 rounded-xl overflow-hidden shadow-lg min-w-[130px] z-30 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                              <div className="px-3 py-1.5 border-b border-white/10">
-                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Quality</span>
-                              </div>
-                              <button
-                                onClick={() => switchQuality(-1)}
-                                className={`w-full px-4 py-1.5 text-left text-[10px] md:text-xs flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === -1 ? 'text-[#ff2a5f] font-bold' : 'text-white'}`}
-                              >
-                                Auto
-                                {currentQuality === -1 && <Check className="w-3 h-3" />}
-                              </button>
-                              {qualities.sort((a, b) => b.height - a.height).map((q) => (
-                                <button
-                                  key={q.index}
-                                  onClick={() => switchQuality(q.index)}
-                                  className={`w-full px-4 py-1.5 text-left text-[10px] md:text-xs flex items-center justify-between hover:bg-white/10 transition-colors ${currentQuality === q.index ? 'text-[#ff2a5f] font-bold' : 'text-white'}`}
-                                >
-                                  {q.label}
-                                  {currentQuality === q.index && <Check className="w-3 h-3" />}
+                            <div id="menu-settings" className="dropdown-menu" style={{ width: '220px', padding: 0 }}>
+                              <div id="panel-quality" className="settings-panel">
+                                <button className="settings-back-btn" id="btn-back-quality" onClick={() => setShowQualityMenu(false)}>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                  Quality
                                 </button>
-                              ))}
+                                <div id="quality-options" className="menu-options" style={{ paddingBottom: '8px' }}>
+                                  <button
+                                    onClick={() => switchQuality(-1)}
+                                    className={`menu-option ${currentQuality === -1 ? 'active' : ''}`}
+                                  >
+                                    Auto {currentQuality === -1 && <Check className="w-3 h-3 ml-2 inline-block" />}
+                                  </button>
+                                  {qualities.sort((a, b) => b.height - a.height).map((q) => (
+                                    <button
+                                      key={q.index}
+                                      onClick={() => switchQuality(q.index)}
+                                      className={`menu-option ${currentQuality === q.index ? 'active' : ''}`}
+                                    >
+                                      {q.label} {currentQuality === q.index && <Check className="w-3 h-3 ml-2 inline-block" />}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Fullscreen Button */}
-                      <button 
-                        onClick={toggleFullscreen}
-                        className="text-white hover:text-[#ff2a5f] transition-colors focus:outline-none"
-                      >
-                        {isFullscreen ? <Minimize className="w-4 h-4 md:w-5 md:h-5" /> : <Maximize className="w-4 h-4 md:w-5 md:h-5" />}
+                      {/* Fullscreen */}
+                      <button id="btn-fullscreen" className="ctrl-btn" title="Fullscreen (F)" onClick={toggleFullscreen}>
+                        {!isFullscreen ? (
+                          <svg id="icon-expand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                        ) : (
+                          <svg id="icon-compress" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                        )}
                       </button>
                     </div>
                   </div>
