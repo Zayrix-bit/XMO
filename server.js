@@ -628,7 +628,9 @@ app.get('/api/hls-proxy', async (req, res) => {
                     if (segmentUrl.includes('.m3u8')) {
                         proxied = `${scheme}://${host}/api/hls-proxy?url=${encodeURIComponent(segmentUrl)}`;
                     } else {
-                        proxied = `${scheme}://${host}/api/proxy?url=${encodeURIComponent(segmentUrl)}`;
+                        // Bypass backend proxy for video chunks (.ts files) to save massive bandwidth.
+                        // The client browser will download them directly from the CDN.
+                        proxied = segmentUrl; 
                     }
                     rewritten.push(proxied);
                 }

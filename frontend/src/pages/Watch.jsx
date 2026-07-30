@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import '../player.css';
 import api from '../services/api';
 import Hls from 'hls.js';
-import { ArrowLeft, Heart, Share2, AlertCircle, Check, Eye, User, Download, Play, Clock, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, AlertCircle, Check, Eye, User, Download, Clock, ChevronDown } from 'lucide-react';
 import HoverPreview from '../components/HoverPreview';
 
 function SkeletonVideo() {
@@ -56,9 +56,7 @@ export default function Watch() {
   
   const wasPlayingRef = useRef(false);
   
-  // Creator data
-  const [creatorVideos, setCreatorVideos] = useState([]);
-  const [creatorLoading, setCreatorLoading] = useState(false);
+
 
   // Custom player states & references
   const playerContainerRef = useRef(null);
@@ -126,30 +124,7 @@ export default function Watch() {
     if (id) fetchVideo();
   }, [id, originalUrl]);
 
-  // Fetch creator data
-  useEffect(() => {
-    const fetchCreator = async () => {
-      if (!videoData?.uploader?.profile_url) return;
-      
-      try {
-        setCreatorLoading(true);
-        // Extract creator slug from profile_url
-        const urlParts = videoData.uploader.profile_url.split('/');
-        const slug = urlParts[urlParts.length - 1];
-        
-        const response = await api.get(`/api/creator/${slug}`);
-        if (response.data.status === 'success') {
-          setCreatorVideos(response.data.videos);
-        }
-      } catch (err) {
-        console.error("Creator fetch error:", err);
-      } finally {
-        setCreatorLoading(false);
-      }
-    };
-    
-    fetchCreator();
-  }, [videoData?.uploader?.profile_url]);
+
 
   // Setup HLS.js or fallback to MP4
   useEffect(() => {
@@ -1024,83 +999,7 @@ export default function Watch() {
 
             {/* Bottom Section: Creator Videos & Related Videos */}
             <div className="w-full space-y-10 border-t border-white/10 pt-8">
-              {/* Creator Videos */}
-              {creatorVideos.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-bold text-white">
-                      More from {videoData.uploader?.name || videoData.uploader?.username}
-                    </h3>
-                    <Link
-                      to={`/creator/${videoData.uploader?.profile_url?.split('/').pop()}`}
-                      className="text-sm font-semibold text-[#ff2a5f] hover:text-[#ff4a7a] transition-colors flex items-center gap-1"
-                    >
-                      View All
-                    </Link>
-                  </div>
-                  
-                  {creatorLoading ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">
-                      {Array(5).fill(0).map((_, i) => (
-                        <div key={i} className="flex flex-col gap-2.5 animate-pulse">
-                          <div className="w-full aspect-video bg-[#121218] rounded-lg"></div>
-                          <div className="space-y-2 py-1">
-                            <div className="h-3 bg-[#121218] rounded w-full"></div>
-                            <div className="h-2 bg-[#121218] rounded w-1/2"></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">
-                      {creatorVideos.map((video, index) => {
-                        const videoId = video.id || video.link.split('-').pop().replace('/', '');
-                        return (
-                          <Link 
-                            to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} 
-                            key={index} 
-                            className="group flex flex-col gap-2.5"
-                          >
-                            {/* Thumbnail */}
-                            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex-shrink-0">
-                              {video.image && (
-                                <img 
-                                  src={video.image} 
-                                  alt={video.title} 
-                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                  loading="lazy"
-                                />
-                              )}
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <div className="w-7 h-7 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-all duration-300">
-                                  <Play className="w-3 h-3 text-white ml-0.5" />
-                                </div>
-                              </div>
-                              {video.duration && (
-                                <div className="absolute bottom-0.5 right-0.5 bg-black/85 backdrop-blur-md px-1.5 py-0.5 rounded-md text-[9px] font-semibold text-white flex items-center gap-0.5">
-                                  <Clock className="w-2 h-2 text-[#ff2a5f]" /> {video.duration}
-                                </div>
-                              )}
-                            </div>
-                            {/* Info */}
-                            <div className="flex flex-col min-w-0">
-                              <h4 className="text-sm font-semibold text-gray-200 group-hover:text-white line-clamp-2 transition-colors leading-snug">
-                                {video.title}
-                              </h4>
-                              {video.views && (
-                                <div className="flex items-center gap-1.5 mt-1.5">
-                                  <Eye className="w-3 h-3 text-gray-500" />
-                                  <span className="text-xs text-gray-500 font-medium">{video.views}</span>
-                                </div>
-                              )}
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+
 
               {/* Related Videos */}
               {relatedVideos.length > 0 && (
