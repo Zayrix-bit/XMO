@@ -6,8 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "client": "npm run dev --prefix frontend",
-    "dev": "nodemon server.js",
-    "postinstall": "npx playwright install chromium"
+    "dev": "nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -18,8 +17,6 @@
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "https-proxy-agent": "^9.1.0",
-    "playwright": "^1.61.1"
+    "express": "^5.2.1"
   }
 }

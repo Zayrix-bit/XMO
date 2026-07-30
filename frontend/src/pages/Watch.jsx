@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import api from '../services/api';
 import Hls from 'hls.js';
-import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, ChevronUp, Pause, Volume2, VolumeX, Maximize, Minimize, Loader2, ChevronLeft, ChevronRight, RotateCcw, RotateCw, Eye, User } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, AlertCircle, Settings, Check, Play, Clock, ChevronDown, Pause, Volume2, VolumeX, Maximize, Minimize, Loader2, ChevronLeft, ChevronRight, RotateCcw, RotateCw, Eye, User, Download } from 'lucide-react';
 
 function SkeletonVideo() {
   return (
@@ -23,7 +23,7 @@ export default function Watch() {
   const [qualities, setQualities] = useState([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
-  const [showAllRelated, setShowAllRelated] = useState(false);
+  const [relatedVisibleCount, setRelatedVisibleCount] = useState(10);
   const [isLiked, setIsLiked] = useState(false);
   const [titleExpanded, setTitleExpanded] = useState(false);
   const [scrubTime, setScrubTime] = useState(null); // Time to preview
@@ -32,7 +32,6 @@ export default function Watch() {
   const wasPlayingRef = useRef(false);
   
   // Creator data
-  const [creatorData, setCreatorData] = useState(null);
   const [creatorVideos, setCreatorVideos] = useState([]);
   const [creatorLoading, setCreatorLoading] = useState(false);
 
@@ -76,7 +75,7 @@ export default function Watch() {
 
   const originalUrl = searchParams.get('url') || '';
   const hasStream = videoData && (videoData.hls_proxy_url || videoData.proxy_url);
-  const relatedVideos = videoData?.related || [];
+  const relatedVideos = useMemo(() => videoData?.related || [], [videoData]);
 
   useEffect(() => {
     const fetchVideo = async () => {
@@ -115,7 +114,6 @@ export default function Watch() {
         
         const response = await api.get(`/api/creator/${slug}`);
         if (response.data.status === 'success') {
-          setCreatorData(response.data.creator);
           setCreatorVideos(response.data.videos);
         }
       } catch (err) {
@@ -504,6 +502,7 @@ export default function Watch() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, volume, isFullscreen, isMuted]);
 
   return (
@@ -546,7 +545,7 @@ export default function Watch() {
           })}
         </script>
       )}
-      <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
+      <div className="pt-24 pb-28 px-4 md:px-6 max-w-[1400px] mx-auto w-full">
       <div className="w-full">
         <button 
           onClick={() => navigate(-1)}
@@ -556,24 +555,26 @@ export default function Watch() {
         </button>
 
         {loading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Skeleton Column */}
-            <div className="lg:col-span-2 space-y-6">
+          <div className="flex flex-col gap-8 w-full">
+            {/* Top Skeleton */}
+            <div className="w-full space-y-6">
               <SkeletonVideo />
-              <div className="h-32 bg-[#121218] rounded-lg animate-pulse"></div>
+              <div className="h-20 bg-[#121218] rounded-lg animate-pulse"></div>
             </div>
-            {/* Right Skeleton Column */}
-            <div className="lg:col-span-1 space-y-4">
-              <div className="h-7 bg-[#121218] rounded-lg w-1/3 animate-pulse mb-4"></div>
-              {Array(4).fill(0).map((_, i) => (
-                <div key={i} className="flex gap-4 animate-pulse">
-                  <div className="w-36 aspect-video bg-[#121218] rounded-lg flex-shrink-0"></div>
-                  <div className="flex-1 space-y-2 py-1">
+            {/* Bottom Skeleton (Grid) */}
+            <div className="w-full">
+              <div className="h-7 bg-[#121218] rounded-lg w-48 animate-pulse mb-4"></div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {Array(5).fill(0).map((_, i) => (
+                <div key={i} className="flex flex-col gap-3 animate-pulse">
+                  <div className="w-full aspect-video bg-[#121218] rounded-lg"></div>
+                  <div className="space-y-2">
                     <div className="h-4 bg-[#121218] rounded w-full"></div>
-                    <div className="h-3 bg-[#121218] rounded w-1/3"></div>
+                    <div className="h-3 bg-[#121218] rounded w-2/3"></div>
                   </div>
                 </div>
               ))}
+              </div>
             </div>
           </div>
         ) : error ? (
@@ -583,30 +584,9 @@ export default function Watch() {
             <p className="text-gray-400 text-sm md:text-base">{error}</p>
           </div>
         ) : hasStream ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            {/* Left Column: Video Player & Video Details */}
-            <div className="lg:col-span-2 space-y-4">
-              {/* Title Section */}
-              <div>
-                <h1 
-                  onClick={() => setTitleExpanded(!titleExpanded)}
-                  className={`text-xl md:text-2xl font-bold text-white mb-2 cursor-pointer hover:text-white/90 transition-colors ${!titleExpanded ? 'line-clamp-2' : ''}`}
-                >
-                  {videoData.title || "Now Playing"}
-                </h1>
-                <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm text-gray-400">
-                  <span className="flex items-center gap-1.5 bg-[#121218] px-3 py-1.5 rounded-lg text-white/90 font-medium border border-white/[0.06]">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    {qualities.length > 0 ? 'HLS' : 'MP4'}
-                  </span>
-                  {videoData.views && (
-                    <span className="flex items-center gap-1.5 bg-[#121218] px-3 py-1.5 rounded-lg text-gray-300 font-medium border border-white/[0.06]">
-                      <Eye className="w-3.5 h-3.5 text-gray-400" /> {videoData.views}
-                    </span>
-                  )}
-                </div>
-              </div>
-              
+          <div className="flex flex-col gap-10 items-start w-full">
+            {/* Top Section: Video Player & Video Details */}
+            <div className="w-full space-y-4">
               {/* Video Player Wrapper Container */}
               <div 
                 ref={playerContainerRef}
@@ -872,98 +852,110 @@ export default function Watch() {
                 </div>
               </div>
               
-              {/* Uploader & Creator Section */}
-              {videoData.uploader && (
-                <div className="bg-[#121218] p-4 rounded-xl border border-white/[0.06]">
+              {/* Video Info & Actions */}
+              <div className="mt-4 flex flex-col gap-4">
+                {/* Title */}
+                <h1 
+                  onClick={() => setTitleExpanded(!titleExpanded)}
+                  className={`text-xl md:text-2xl lg:text-3xl font-bold text-white cursor-pointer hover:text-white/90 transition-colors ${!titleExpanded ? 'line-clamp-2' : ''}`}
+                >
+                  {videoData.title || "Now Playing"}
+                </h1>
+
+                {/* Uploader, Stats, Actions Row */}
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-6 pb-4 border-b border-white/10">
+                  {/* Left Side: Uploader */}
                   <div className="flex items-center gap-3">
-                    {videoData.uploader.avatar ? (
-                      <img 
-                        src={videoData.uploader.avatar} 
-                        alt={videoData.uploader.name || videoData.uploader.username} 
-                        className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border border-white/10"
-                      />
+                    {videoData.uploader ? (
+                      <>
+                        {videoData.uploader.avatar ? (
+                          <img 
+                            src={videoData.uploader.avatar} 
+                            alt={videoData.uploader.name || videoData.uploader.username} 
+                            className="w-12 h-12 rounded-full object-cover border border-white/10"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
+                            <User className="w-6 h-6 text-white/70" />
+                          </div>
+                        )}
+                        <div className="flex flex-col">
+                          <span className="text-sm md:text-base font-bold text-white">
+                            {videoData.uploader.name || videoData.uploader.username}
+                          </span>
+                          {videoData.uploader.username && videoData.uploader.name && (
+                            <span className="text-xs text-gray-400">
+                              @{videoData.uploader.username}
+                            </span>
+                          )}
+                        </div>
+                      </>
                     ) : (
-                      <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
-                        <User className="w-6 h-6 md:w-7 md:h-7 text-white/70" />
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
+                          <User className="w-6 h-6 text-white/70" />
+                        </div>
+                        <span className="text-sm md:text-base font-bold text-white">Unknown Creator</span>
                       </div>
                     )}
-                    <div className="flex flex-col">
-                      <span className="text-sm md:text-base font-semibold text-white">
-                        {videoData.uploader.name || videoData.uploader.username}
-                      </span>
-                      {videoData.uploader.username && videoData.uploader.name && (
-                        <span className="text-xs text-gray-500">
-                          @{videoData.uploader.username}
-                        </span>
-                      )}
-                    </div>
                   </div>
-                  
-                  {/* Creator Stats (if available) */}
-                  {creatorData && (
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                      {creatorData.videoCount && (
-                        <div>
-                          <div className="text-lg font-bold text-white">{creatorData.videoCount}</div>
-                          <div className="text-xs text-gray-400">Videos</div>
-                        </div>
-                      )}
-                      {creatorData.viewsCount && (
-                        <div>
-                          <div className="text-lg font-bold text-white">{creatorData.viewsCount}</div>
-                          <div className="text-xs text-gray-400">Views</div>
-                        </div>
-                      )}
-                      {creatorData.subscribers && (
-                        <div>
-                          <div className="text-lg font-bold text-white">{creatorData.subscribers}</div>
-                          <div className="text-xs text-gray-400">Subscribers</div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+
+                  {/* Right Side: Actions & Stats */}
+                  <div className="flex items-center gap-2 md:gap-3 overflow-x-auto pb-1 md:pb-0 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden w-full md:w-auto">
+                    {videoData.views && (
+                      <span className="flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/10 px-3 md:px-4 py-1.5 md:py-2 rounded-full text-gray-300 font-medium text-xs md:text-sm transition-colors cursor-default flex-shrink-0">
+                        <Eye className="w-3.5 h-3.5 text-gray-400" /> {videoData.views}
+                      </span>
+                    )}
+
+                    <div className="w-[1px] h-5 md:h-6 bg-white/10 mx-0.5 md:mx-1 hidden sm:block flex-shrink-0"></div>
+                    <button 
+                      onClick={() => setIsLiked(!isLiked)} 
+                      className={`flex items-center justify-center gap-1.5 md:gap-2 px-4 md:px-5 py-1.5 md:py-2 rounded-full transition-all font-semibold text-xs md:text-sm active:scale-95 flex-shrink-0 ${
+                        isLiked 
+                          ? 'bg-[#ff2a5f]/20 text-[#ff2a5f]' 
+                          : 'bg-white/5 text-white hover:bg-[#ff2a5f]/20 hover:text-[#ff2a5f]'
+                      }`}
+                    >
+                      <Heart className="w-3.5 h-3.5 md:w-4 md:h-4" fill={isLiked ? 'currentColor' : 'none'} /> Like
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        if (navigator.share) {
+                          try {
+                            await navigator.share({
+                              title: videoData.title,
+                              text: 'Check out this video!',
+                              url: window.location.href
+                            });
+                          } catch (err) {
+                            console.error('Share failed:', err);
+                          }
+                        } else {
+                          await navigator.clipboard.writeText(window.location.href);
+                          alert('Link copied to clipboard!');
+                        }
+                      }} 
+                      className="flex items-center justify-center gap-1.5 md:gap-2 bg-white/5 hover:bg-white/10 text-white px-4 md:px-5 py-1.5 md:py-2 rounded-full transition-all font-semibold text-xs md:text-sm active:scale-95 flex-shrink-0"
+                    >
+                      <Share2 className="w-3.5 h-3.5 md:w-4 md:h-4" /> Share
+                    </button>
+                    {videoData.proxy_url && (
+                      <a 
+                        href={`${import.meta.env.VITE_API_BASE_URL}${videoData.proxy_url}&download=true&title=${encodeURIComponent(videoData.title || 'video')}`}
+                        download
+                        className="flex items-center justify-center gap-1.5 md:gap-2 bg-white/5 hover:bg-white/10 text-white px-4 md:px-5 py-1.5 md:py-2 rounded-full transition-all font-semibold text-xs md:text-sm active:scale-95 flex-shrink-0"
+                      >
+                        <Download className="w-3.5 h-3.5 md:w-4 md:h-4" /> Download
+                      </a>
+                    )}
+                  </div>
                 </div>
-              )}
-              
-              {/* Video Actions */}
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => setIsLiked(!isLiked)} 
-                  className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl transition-all font-medium text-sm active:scale-95 ${
-                    isLiked 
-                      ? 'bg-[#ff2a5f]/20 text-[#ff2a5f] border border-[#ff2a5f]/50' 
-                      : 'bg-white/5 text-white border border-white/10 hover:bg-[#ff2a5f]/20 hover:text-[#ff2a5f] hover:border-[#ff2a5f]/50'
-                  }`}
-                >
-                  <Heart className="w-4 h-4" fill={isLiked ? 'currentColor' : 'none'} /> Like
-                </button>
-                <button 
-                  onClick={async () => {
-                    if (navigator.share) {
-                      try {
-                        await navigator.share({
-                          title: videoData.title,
-                          text: 'Check out this video!',
-                          url: window.location.href
-                        });
-                      } catch {
-                        // Ignore cancel errors
-                      }
-                    } else {
-                      // Fallback: copy link to clipboard
-                      await navigator.clipboard.writeText(window.location.href);
-                      alert('Link copied to clipboard!');
-                    }
-                  }} 
-                  className="flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 px-4 py-2 rounded-xl transition-all font-medium text-sm active:scale-95"
-                >
-                  <Share2 className="w-4 h-4" /> Share
-                </button>
               </div>
             </div>
 
-            {/* Right Column: Creator Videos & Related Videos */}
-            <div className="lg:col-span-1 space-y-4">
+            {/* Bottom Section: Creator Videos & Related Videos */}
+            <div className="w-full space-y-10 border-t border-white/10 pt-8">
               {/* Creator Videos */}
               {creatorVideos.length > 0 && (
                 <div>
@@ -980,29 +972,29 @@ export default function Watch() {
                   </div>
                   
                   {creatorLoading ? (
-                    <div className="flex flex-col gap-2.5">
-                      {Array(3).fill(0).map((_, i) => (
-                        <div key={i} className="flex gap-2.5 animate-pulse">
-                          <div className="w-28 md:w-32 aspect-video bg-[#121218] rounded-lg flex-shrink-0"></div>
-                          <div className="flex-1 space-y-2 py-1">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">
+                      {Array(5).fill(0).map((_, i) => (
+                        <div key={i} className="flex flex-col gap-2.5 animate-pulse">
+                          <div className="w-full aspect-video bg-[#121218] rounded-lg"></div>
+                          <div className="space-y-2 py-1">
                             <div className="h-3 bg-[#121218] rounded w-full"></div>
-                            <div className="h-2 bg-[#121218] rounded w-1/3"></div>
+                            <div className="h-2 bg-[#121218] rounded w-1/2"></div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2.5">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">
                       {creatorVideos.map((video, index) => {
                         const videoId = video.id || video.link.split('-').pop().replace('/', '');
                         return (
                           <Link 
                             to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} 
                             key={index} 
-                            className="group flex gap-2.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 p-1.5 rounded-xl transition-all duration-200 active:scale-[0.98]"
+                            className="group flex flex-col gap-2.5"
                           >
                             {/* Thumbnail */}
-                            <div className="relative w-28 md:w-32 aspect-video rounded-lg overflow-hidden bg-black flex-shrink-0">
+                            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex-shrink-0">
                               {video.image && (
                                 <img 
                                   src={video.image} 
@@ -1023,14 +1015,14 @@ export default function Watch() {
                               )}
                             </div>
                             {/* Info */}
-                            <div className="flex flex-col justify-between flex-1 min-w-0 py-0.5">
-                              <h4 className="text-[11px] md:text-xs font-semibold text-gray-200 group-hover:text-white line-clamp-2 transition-colors leading-snug">
+                            <div className="flex flex-col min-w-0">
+                              <h4 className="text-sm font-semibold text-gray-200 group-hover:text-white line-clamp-2 transition-colors leading-snug">
                                 {video.title}
                               </h4>
                               {video.views && (
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <Eye className="w-2.5 h-2.5 text-gray-500" />
-                                  <span className="text-[9px] text-gray-500">{video.views}</span>
+                                <div className="flex items-center gap-1.5 mt-1.5">
+                                  <Eye className="w-3 h-3 text-gray-500" />
+                                  <span className="text-xs text-gray-500 font-medium">{video.views}</span>
                                 </div>
                               )}
                             </div>
@@ -1061,17 +1053,17 @@ export default function Watch() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2.5">
-                    {(showAllRelated ? relatedVideos : relatedVideos.slice(0, 8)).map((video, index) => {
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">
+                    {relatedVideos.slice(0, relatedVisibleCount).map((video, index) => {
                       const videoId = video.id || video.link.split('-').pop().replace('/', '');
                       return (
                         <Link 
                           to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} 
                           key={index} 
-                          className="group flex gap-2.5 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 p-1.5 rounded-xl transition-all duration-200 active:scale-[0.98]"
+                          className="group flex flex-col gap-2.5 hover:bg-white/5 p-2 -m-2 rounded-xl transition-all duration-300"
                         >
                           {/* Thumbnail */}
-                          <div className="relative w-28 md:w-32 aspect-video rounded-lg overflow-hidden bg-black flex-shrink-0">
+                          <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black flex-shrink-0">
                             {video.image && (
                               <img 
                                 src={video.image} 
@@ -1092,14 +1084,14 @@ export default function Watch() {
                             )}
                           </div>
                           {/* Info */}
-                          <div className="flex flex-col justify-between flex-1 min-w-0 py-0.5">
-                            <h4 className="text-[11px] md:text-xs font-semibold text-gray-200 group-hover:text-white line-clamp-2 transition-colors leading-snug">
+                          <div className="flex flex-col min-w-0">
+                            <h4 className="text-sm font-semibold text-gray-200 group-hover:text-white line-clamp-2 transition-colors leading-snug">
                               {video.title}
                             </h4>
                             {video.views && (
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <Eye className="w-2.5 h-2.5 text-gray-500" />
-                                <span className="text-[9px] text-gray-500">{video.views}</span>
+                              <div className="flex items-center gap-1.5 mt-1.5">
+                                <Eye className="w-3 h-3 text-gray-500" />
+                                <span className="text-xs text-gray-500 font-medium">{video.views}</span>
                               </div>
                             )}
                           </div>
@@ -1107,17 +1099,13 @@ export default function Watch() {
                       );
                     })}
                   </div>
-                  {relatedVideos.length > 8 && (
+                  {relatedVideos.length > relatedVisibleCount && (
                     <div className="mt-4 flex justify-center">
                       <button
-                        onClick={() => setShowAllRelated(!showAllRelated)}
+                        onClick={() => setRelatedVisibleCount(prev => prev + 10)}
                         className="w-full bg-white/5 hover:bg-[#ff2a5f]/20 border border-white/10 hover:border-[#ff2a5f]/50 py-2 rounded-xl text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95"
                       >
-                        {showAllRelated ? (
-                          <>Show Less <ChevronUp className="w-3.5 h-3.5" /></>
-                        ) : (
-                          <>Show More <ChevronDown className="w-3.5 h-3.5" /></>
-                        )}
+                        Show More <ChevronDown className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   )}

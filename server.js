@@ -7,8 +7,8 @@ const fs = require('fs');
 const path = require('path');
 const cluster = require('cluster');
 const os = require('os');
-const { HttpsProxyAgent } = require('https-proxy-agent');
-const { chromium } = require('playwright');
+const http = require('http');
+const https = require('https');
 
 dotenv.config();
 
@@ -17,23 +17,6 @@ app.use(cors());
 
 // Cache setup
 const cache = new Map();
-
-// Proxy configuration
-let _proxyList = [];
-function loadProxies() {
-    const proxyStr = process.env.PROXY_LIST || "";
-    if (proxyStr) {
-        _proxyList = proxyStr.replace(/,/g, " ").split(/\s+/).filter(p => p.trim() !== "");
-    }
-    const singleHttp = process.env.HTTP_PROXY || process.env.http_proxy;
-    const singleHttps = process.env.HTTPS_PROXY || process.env.https_proxy;
-
-    if (singleHttp && !_proxyList.includes(singleHttp)) _proxyList.push(singleHttp);
-    else if (singleHttps && !_proxyList.includes(singleHttps)) _proxyList.push(singleHttps);
-
-    console.log(`Loaded ${_proxyList.length} proxies from env`);
-}
-loadProxies();
 
 const _USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
@@ -93,7 +76,7 @@ function getHeaders(domain = 'xhamster.desi') {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         "Accept-Encoding": "gzip, deflate, br, zstd",
-        "Referer": "https://www.google.com/",
+        "Referer": `https://${domain}/`,
         "DNT": "1",
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1",
@@ -115,26 +98,29 @@ function getHeaders(domain = 'xhamster.desi') {
     return headers;
 }
 
-function getClient(proxyUrl = null) {
-    const config = {
-        timeout: 30000, // Increased from 15s to 30s to allow busy proxies to respond
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
+
+function getClient() {
+    return axios.create({
+        timeout: 30000,
         maxRedirects: 5,
         validateStatus: () => true,
-    };
-    if (proxyUrl) {
-        config.httpsAgent = new HttpsProxyAgent(proxyUrl);
-    }
-    return axios.create(config);
+        httpAgent,
+        httpsAgent
+    });
 }
 
 function extractPageData(html) {
-    const $ = cheerio.load(html);
     let largestData = null;
     let largestSize = 0;
 
-    $('script').each((i, el) => {
-        const content = $(el).html();
-        if (!content) return;
+    const scriptRegex = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+    let match;
+
+    while ((match = scriptRegex.exec(html)) !== null) {
+        const content = match[1];
+        if (!content) continue;
 
         let startIdx = 0;
         while (true) {
@@ -163,11 +149,13 @@ function extractPageData(html) {
             }
             startIdx = endBrace;
         }
-    });
+    }
     return largestData;
 }
 
 function formatDuration(seconds) {
+    if (!seconds) return '00:00';
+    if (typeof seconds === 'string' && seconds.includes(':')) return seconds;
     seconds = parseInt(seconds) || 0;
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -228,45 +216,17 @@ function parseVideoList(pageData) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-let pwBrowser = null;
-async function getBrowser() {
-    if (!pwBrowser) {
-        pwBrowser = await chromium.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
-        });
-    }
-    return pwBrowser;
-}
-
-async function fetchHtmlPlaywright(url) {
-    const browser = await getBrowser();
-    const context = await browser.newContext({
-        userAgent: _USER_AGENTS[Math.floor(Math.random() * _USER_AGENTS.length)]
-    });
-    const page = await context.newPage();
-
-    // Block resources to save memory/bandwidth
-    await page.route('**/*', route => {
-        const type = route.request().resourceType();
-        if (['image', 'media', 'font', 'stylesheet'].includes(type)) {
-            route.abort();
-        } else {
-            route.continue();
-        }
-    });
-
+async function fetchHtmlAxios(url) {
+    const client = getClient();
     try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        // Wait for Cloudflare challenge to pass
-        await page.waitForFunction(() => !document.title.includes('Just a moment'), { timeout: 15000 }).catch(() => {});
-        await sleep(1000); // Wait for scripts to populate data
-
-        const html = await page.content();
-        await context.close();
-        return html;
+        const domain = new URL(url).hostname;
+        const headers = getHeaders(domain);
+        const res = await client.get(url, { headers });
+        if (res.status !== 200 && res.status !== 404) {
+             console.log(`[AXIOS] Non-200 status ${res.status} on ${url}`);
+        }
+        return res.data;
     } catch (e) {
-        await context.close();
         throw e;
     }
 }
@@ -275,27 +235,42 @@ async function fetchWithFallback(path, useHttps = true) {
     const protocol = useHttps ? 'https' : 'http';
     const allDomains = [...XHAMSTER_DOMAINS].sort(() => 0.5 - Math.random());
     
-    for (let domain of allDomains) {
-        try {
-            console.log(`[PW-DIRECT] Trying ${domain}${path}...`);
-            const url = `${protocol}://${domain}${path}`;
-            
-            const html = await fetchHtmlPlaywright(url);
-            
-            const pageData = extractPageData(html);
-            const isCategories = path === '/categories';
-            const vtp = findVideoThumbProps(pageData);
+    // Race the first 3 domains concurrently for maximum speed
+    const domainsToRace = allDomains.slice(0, 3);
+    console.log(`[AXIOS] Racing domains: ${domainsToRace.join(', ')} for ${path}`);
 
-            if (isCategories || (vtp && vtp.length > 0) || (pageData && pageData.infoComponent)) {
-                console.log(`[PW-DIRECT] Success on ${domain}${path}`);
-                return { html, domain, pageData };
-            } else {
-                console.log(`[PW-DIRECT] No valid data on ${domain}, trying next...`);
-                await sleep(1000);
-            }
-        } catch (e) {
-            console.log(`[PW-DIRECT] Error on ${domain}: ${e.message}`);
-            await sleep(1000);
+    const promises = domainsToRace.map(async (domain) => {
+        const url = `${protocol}://${domain}${path}`;
+        const html = await fetchHtmlAxios(url);
+        const pageData = extractPageData(html);
+        const isCategories = path === '/categories';
+        const vtp = findVideoThumbProps(pageData);
+
+        if (isCategories || (vtp && vtp.length > 0) || (pageData && pageData.infoComponent)) {
+            console.log(`[AXIOS] Fast-Response won by: ${domain}${path}`);
+            return { html, domain, pageData };
+        }
+        throw new Error(`Invalid data on ${domain}`);
+    });
+
+    try {
+        return await Promise.any(promises);
+    } catch (e) {
+        console.log(`[AXIOS] Fast race failed for ${path}. Falling back to sequential...`);
+        // Fallback sequentially to the rest if the initial race failed
+        for (let domain of allDomains.slice(3)) {
+            try {
+                const url = `${protocol}://${domain}${path}`;
+                const html = await fetchHtmlAxios(url);
+                const pageData = extractPageData(html);
+                const isCategories = path === '/categories';
+                const vtp = findVideoThumbProps(pageData);
+
+                if (isCategories || (vtp && vtp.length > 0) || (pageData && pageData.infoComponent)) {
+                    console.log(`[AXIOS] Fallback Success on ${domain}${path}`);
+                    return { html, domain, pageData };
+                }
+            } catch (err) { }
         }
     }
     return { html: null, domain: null, pageData: null };
@@ -467,7 +442,7 @@ app.get('/api/video', cacheResponse(600), async (req, res) => {
     try {
         const parsedUrl = new URL(videoUrl);
         const domain = parsedUrl.hostname;
-        const html = await fetchHtmlPlaywright(videoUrl);
+        const html = await fetchHtmlAxios(videoUrl);
         const $ = cheerio.load(html);
         const pageData = extractPageData(html);
 
@@ -539,6 +514,7 @@ app.get('/api/video', cacheResponse(600), async (req, res) => {
 // Proxy logic
 app.get('/api/proxy', async (req, res) => {
     const url = req.query.url;
+    const isDownload = req.query.download === 'true';
     if (!url) return res.status(400).send("Missing URL");
 
     try {
@@ -553,8 +529,7 @@ app.get('/api/proxy', async (req, res) => {
             proxyHeaders['Range'] = req.headers.range;
         }
 
-        const proxy = _proxyList.length > 0 ? _proxyList[Math.floor(Math.random() * _proxyList.length)] : null;
-        const client = getClient(proxy);
+        const client = getClient();
         const response = await client.get(url, {
             headers: proxyHeaders,
             responseType: 'stream'
@@ -567,6 +542,12 @@ app.get('/api/proxy', async (req, res) => {
         ['content-type', 'content-length', 'content-range', 'accept-ranges', 'cache-control'].forEach(h => {
             if (response.headers[h]) res.setHeader(h, response.headers[h]);
         });
+
+        if (isDownload) {
+            let title = req.query.title ? req.query.title.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 80).trim() : 'video';
+            if (!title) title = 'video';
+            res.setHeader('Content-Disposition', `attachment; filename="${title}.mp4"`);
+        }
 
         res.status(response.status);
         response.data.pipe(res);
@@ -589,8 +570,7 @@ app.get('/api/hls-proxy', async (req, res) => {
         const proxyHeaders = getHeaders(refererDomain);
         proxyHeaders['Origin'] = `https://${refererDomain}`;
 
-        const proxy = _proxyList.length > 0 ? _proxyList[Math.floor(Math.random() * _proxyList.length)] : null;
-        const client = getClient(proxy);
+        const client = getClient();
         const response = await client.get(url, { headers: proxyHeaders, responseType: 'text' });
 
         let content = response.data;
@@ -650,9 +630,9 @@ app.get('/api/hls-proxy', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 7860;
-const numCPUs = process.env.WORKERS ? parseInt(process.env.WORKERS) : 1; // Limited to 1 for Playwright memory usage
+const numCPUs = process.env.WORKERS ? parseInt(process.env.WORKERS) : 1; // Default to 1 for lightweight memory footprint
 
-if (cluster.isPrimary) {
+if (cluster.isPrimary && numCPUs > 1) {
     console.log(`Master Server is running. Starting ${numCPUs} workers...`);
     for (let i = 0; i < numCPUs; i++) {
         cluster.fork();

@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import api from '../services/api';
 import { useCategories } from '../context/CategoriesContext';
-import { Play, Clock, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { Play, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 
 function SkeletonCard() {
   return (
@@ -164,24 +164,26 @@ export default function Home() {
       {tab !== 'categories' && allCategories.length > 0 && (
         <div className="mb-10">
           <h2 className="text-base md:text-lg font-semibold text-white mb-4">Popular Categories</h2>
-          <div className="flex overflow-x-auto gap-2.5 md:flex-wrap pb-3 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden pr-1 md:pr-0">
-            {allCategories.slice(0, 20).map((cat, i) => (
-              <Link
-                key={i}
-                to={`/?tab=category&slug=${cat.slug}`}
-                className="bg-[#121218] hover:bg-[#181822] px-4 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white transition-all border border-white/[0.06] whitespace-nowrap"
-              >
-                {cat.name}
-              </Link>
-            ))}
-            {allCategories.length > 20 && (
-              <Link
-                to="/?tab=categories"
-                className="bg-[#121218] hover:bg-[#181822] px-4 py-2.5 rounded-lg text-sm font-medium text-[#ff2a5f] hover:text-[#ff4a75] transition-all border border-white/[0.06] whitespace-nowrap flex items-center gap-1"
-              >
-                View All <ChevronRight className="w-4 h-4" />
-              </Link>
-            )}
+          <div className="bg-[#121218]/40 border border-white/[0.04] p-2.5 md:p-4 rounded-xl">
+            <div className="flex overflow-x-auto gap-2 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden">
+              {allCategories.slice(0, 20).map((cat, i) => (
+                <Link
+                  key={i}
+                  to={`/?tab=category&slug=${cat.slug}`}
+                  className="bg-[#181822] hover:bg-[#20202c] px-3 py-1.5 rounded-lg text-[11px] sm:text-xs md:text-sm font-medium text-gray-300 hover:text-white transition-all border border-white/[0.06] whitespace-nowrap flex-shrink-0"
+                >
+                  {cat.name}
+                </Link>
+              ))}
+              {allCategories.length > 20 && (
+                <Link
+                  to="/?tab=categories"
+                  className="bg-[#181822] hover:bg-[#20202c] px-3 py-1.5 rounded-lg text-[11px] sm:text-xs md:text-sm font-medium text-[#ff2a5f] hover:text-[#ff4a75] transition-all border border-white/[0.06] whitespace-nowrap flex-shrink-0 flex items-center gap-1"
+                >
+                  View All <ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -334,21 +336,38 @@ export default function Home() {
 
           {/* Pagination */}
           {!loading && videos.length > 0 && (
-            <div className="mt-12 flex items-center justify-center gap-3">
+            <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
               <button 
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page <= 1}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#121218] border border-white/[0.06] text-white hover:bg-[#181822] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#121218] border border-white/[0.06] text-gray-300 hover:text-white hover:bg-[#181822] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
               </button>
-              <div className="px-4 py-2.5 rounded-lg bg-[#121218] border border-white/[0.06] font-semibold text-sm md:text-base">
-                Page {page}
+              
+              <div className="flex items-center gap-2">
+                {[...Array(5)].map((_, idx) => {
+                  const pageNum = Math.max(1, page - 2) + idx;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`w-10 h-10 flex items-center justify-center rounded-lg font-semibold text-sm transition-all ${
+                        page === pageNum 
+                          ? 'bg-[#ff2a5f] text-white shadow-lg shadow-[#ff2a5f]/25' 
+                          : 'bg-[#121218] border border-white/[0.06] text-gray-400 hover:bg-[#181822] hover:text-white'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
               </div>
+
               <button 
                 onClick={() => handlePageChange(page + 1)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#ff2a5f] text-white hover:bg-[#ff4a75] transition-all"
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#121218] border border-white/[0.06] text-gray-300 hover:text-white hover:bg-[#181822] transition-all font-medium text-sm"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
