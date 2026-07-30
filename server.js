@@ -204,9 +204,10 @@ function parseVideoList(pageData) {
                 const duration = formatDuration(item.duration);
                 const videoId = String(item.id || '');
                 const views = formatViews(item.views);
+                const previewVideo = item.trailerFallbackUrl || item.trailerURL || '';
 
                 if (link && title) {
-                    videos.push({ id: videoId, title, link, image, duration, views });
+                    videos.push({ id: videoId, title, link, image, duration, views, previewVideo });
                 }
             } catch (e) { }
         });

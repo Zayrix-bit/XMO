@@ -5,6 +5,7 @@ import '../player.css';
 import api from '../services/api';
 import Hls from 'hls.js';
 import { ArrowLeft, Heart, Share2, AlertCircle, Check, Eye, User, Download, Play, Clock, ChevronDown } from 'lucide-react';
+import HoverPreview from '../components/HoverPreview';
 
 function SkeletonVideo() {
   return (
@@ -1131,12 +1132,7 @@ export default function Watch() {
                           {/* Thumbnail */}
                           <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black flex-shrink-0">
                             {video.image && (
-                              <img 
-                                src={video.image} 
-                                alt={video.title} 
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                loading="lazy"
-                              />
+                              <HoverPreview video={video} />
                             )}
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                               <div className="w-7 h-7 rounded-full bg-[#ff2a5f] flex items-center justify-center shadow-lg transform scale-75 group-hover:scale-100 transition-all duration-300">

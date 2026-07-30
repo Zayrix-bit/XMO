@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import api from '../services/api';
 import { useCategories } from '../context/CategoriesContext';
 import { Play, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import HoverPreview from '../components/HoverPreview';
 
 function SkeletonCard() {
   return (
@@ -287,12 +288,7 @@ export default function Home() {
                   <Link to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} key={index} className="group flex flex-col gap-2.5">
                     <div className="relative aspect-video rounded-lg overflow-hidden bg-[#121218]">
                       {video.image ? (
-                        <img 
-                          src={video.image} 
-                          alt={video.title} 
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          loading="lazy"
-                        />
+                        <HoverPreview video={video} />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-[#121218] to-[#181822] flex items-center justify-center">
                           <Play className="w-8 h-8 text-gray-600" />
