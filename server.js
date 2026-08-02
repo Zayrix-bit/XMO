@@ -30,10 +30,9 @@ const _USER_AGENTS = [
 const XHAMSTER_DOMAINS = [
     'xhamster.com',
     'xhamster.desi',
-    'xhamster1.com',
     'xhamster2.com',
     'xhamster3.com',
-    'xhamster4.com',
+    'xhamster46.com',
     'xhamster5.com',
     'xhamster18.com'
 ];
@@ -224,7 +223,7 @@ async function fetchHtmlAxios(url) {
         const headers = getHeaders(domain);
         const res = await client.get(url, { headers });
         if (res.status !== 200 && res.status !== 404) {
-             console.log(`[AXIOS] Non-200 status ${res.status} on ${url}`);
+            console.log(`[AXIOS] Non-200 status ${res.status} on ${url}`);
         }
         return res.data;
     } catch (e) {
@@ -235,7 +234,7 @@ async function fetchHtmlAxios(url) {
 async function fetchWithFallback(path, useHttps = true) {
     const protocol = useHttps ? 'https' : 'http';
     const allDomains = [...XHAMSTER_DOMAINS].sort(() => 0.5 - Math.random());
-    
+
     // Race the first 3 domains concurrently for maximum speed
     const domainsToRace = allDomains.slice(0, 3);
     console.log(`[AXIOS] Racing domains: ${domainsToRace.join(', ')} for ${path}`);
@@ -244,7 +243,7 @@ async function fetchWithFallback(path, useHttps = true) {
         const url = `${protocol}://${domain}${path}`;
         const html = await fetchHtmlAxios(url);
         const pageData = extractPageData(html);
-        const isCategories = path === '/categories';
+        const isCategories = path === '/categories' && pageData && Object.keys(pageData).length > 0;
         const vtp = findVideoThumbProps(pageData);
 
         if (isCategories || (vtp && vtp.length > 0) || (pageData && pageData.infoComponent)) {
@@ -281,8 +280,26 @@ function cacheResponse(ttlSeconds) {
     return (req, res, next) => {
         const key = req.originalUrl || req.url;
         const cachedResponse = cache.get(key);
-        if (cachedResponse && (Date.now() - cachedResponse.timestamp) < ttlSeconds * 1000) {
-            return res.json(cachedResponse.data);
+
+        if (cachedResponse) {
+            const isFresh = (Date.now() - cachedResponse.timestamp) < ttlSeconds * 1000;
+            if (isFresh) {
+                return res.json(cachedResponse.data);
+            } else {
+                res.json(cachedResponse.data);
+                const noop = () => { };
+                res.setHeader = noop;
+                res.header = noop;
+                res.status = function () { return this; };
+                res.send = noop;
+                res.end = noop;
+                res.json = (body) => {
+                    if (body && body.status === 'success') {
+                        cache.set(key, { timestamp: Date.now(), data: body });
+                    }
+                };
+                return next();
+            }
         }
 
         const originalJson = res.json;
@@ -290,7 +307,9 @@ function cacheResponse(ttlSeconds) {
             if (body && body.status === 'success') {
                 cache.set(key, { timestamp: Date.now(), data: body });
             }
-            originalJson.call(res, body);
+            if (!res.headersSent) {
+                originalJson.call(res, body);
+            }
         };
         next();
     };
@@ -322,7 +341,7 @@ app.get('/api/search', cacheResponse(3600), async (req, res) => {
     res.json({ status: "success", query: q, page, results: videos, used_domain: domain });
 });
 
-app.get('/api/trending', cacheResponse(10), async (req, res) => {
+app.get('/api/trending', cacheResponse(600), async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const pathStr = page === 1 ? "/" : `/best/monthly/${page}`;
 
@@ -333,7 +352,7 @@ app.get('/api/trending', cacheResponse(10), async (req, res) => {
     res.json({ status: "success", page, results: videos, used_domain: domain });
 });
 
-app.get('/api/newest', cacheResponse(10), async (req, res) => {
+app.get('/api/newest', cacheResponse(600), async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const { html, domain, pageData } = await fetchWithFallback(`/newest/${page}`);
     if (!html) return res.status(500).json({ status: "error", message: "No working domain found" });
@@ -380,46 +399,66 @@ app.get('/api/creator/:slug', cacheResponse(3600), async (req, res) => {
 
 app.get('/api/categories', cacheResponse(86400), async (req, res) => {
     try {
-        const { html, domain } = await fetchWithFallback('/categories');
+        const { html, domain, pageData } = await fetchWithFallback('/categories');
         if (!html) throw new Error("No HTML found");
-        const $ = cheerio.load(html);
+        
         const cats = [];
         const langs = [];
         const seen = new Set();
 
+        function processCat(name, href, image) {
+            if (!href.includes('/categories/') || href.includes('/photos/') || !name) return;
+            const slug = href.replace(/\/$/, '').split('/').pop();
+            const catData = { name, slug, url: href, image };
+            
+            if (!seen.has(href)) {
+                seen.add(href);
+                if (name.toLowerCase().startsWith('porn in ')) langs.push(catData);
+                else cats.push(catData);
+            } else if (image) {
+                const existingCat = cats.find(c => c.url === href) || langs.find(c => c.url === href);
+                if (existingCat && !existingCat.image) existingCat.image = image;
+            }
+        }
+
+        // 1. Try to extract from inline JSON first (highly robust)
+        function extractCatsFromJson(obj) {
+            if (!obj || typeof obj !== 'object') return;
+            if (Array.isArray(obj)) {
+                obj.forEach(item => extractCatsFromJson(item));
+                return;
+            }
+            if (obj.url && obj.url.includes('/categories/') && obj.name) {
+                processCat(obj.name, obj.url, obj.thumb || obj.icon || '');
+            } else {
+                for (let key in obj) extractCatsFromJson(obj[key]);
+            }
+        }
+        
+        if (pageData) extractCatsFromJson(pageData);
+
+        // 2. Fallback to Cheerio HTML extraction if JSON missed some
+        const $ = cheerio.load(html);
         $('a').each((i, el) => {
             const href = $(el).attr('href') || '';
             const name = $(el).text().trim() || $(el).attr('title') || '';
-
-            if (href.includes('/categories/') && !href.includes('/photos/') && name) {
-                const slug = href.replace(/\/$/, '').split('/').pop();
-                const imgTag = $(el).find('img');
-                const image = imgTag.attr('src') || imgTag.attr('data-src') || '';
-
-                const catData = { name, slug, url: href, image };
-
-                if (!seen.has(href)) {
-                    seen.add(href);
-                    if (name.toLowerCase().startsWith('porn in ')) langs.push(catData);
-                    else cats.push(catData);
-                } else {
-                    if (image) {
-                        const existingCat = cats.find(c => c.url === href) || langs.find(c => c.url === href);
-                        if (existingCat && !existingCat.image) existingCat.image = image;
-                    }
-                }
-            }
+            const imgTag = $(el).find('img');
+            const image = imgTag.attr('src') || imgTag.attr('data-src') || '';
+            processCat(name, href, image);
         });
 
         const COUNTRY_SLUGS = new Set([
             'indian', 'desi', 'russian', 'american', 'british', 'japanese', 'korean', 'chinese', 'german', 'french',
             'italian', 'spanish', 'brazilian', 'mexican', 'colombian', 'canadian', 'australian', 'asian', 'latina'
         ]);
-
         const BLOCKED_SLUGS = new Set(['granny']);
 
         const normal_cats = cats.filter(c => !COUNTRY_SLUGS.has(c.slug) && !BLOCKED_SLUGS.has(c.slug));
         const country_cats = cats.filter(c => COUNTRY_SLUGS.has(c.slug) && !BLOCKED_SLUGS.has(c.slug));
+
+        if (normal_cats.length === 0) {
+            throw new Error("No categories found in DOM or JSON on " + domain);
+        }
 
         res.json({ status: "success", categories: normal_cats, countries: country_cats, languages: langs, used_domain: domain });
     } catch (e) {
@@ -630,7 +669,7 @@ app.get('/api/hls-proxy', async (req, res) => {
                     } else {
                         // Bypass backend proxy for video chunks (.ts files) to save massive bandwidth.
                         // The client browser will download them directly from the CDN.
-                        proxied = segmentUrl; 
+                        proxied = segmentUrl;
                     }
                     rewritten.push(proxied);
                 }
@@ -655,6 +694,19 @@ app.get('/api/hls-proxy', async (req, res) => {
 const PORT = process.env.PORT || 7860;
 const numCPUs = process.env.WORKERS ? parseInt(process.env.WORKERS) : 1; // Default to 1 for lightweight memory footprint
 
+async function prewarmCache() {
+    console.log(`[Worker ${process.pid}] Pre-warming cache (Trending, Newest, Categories)...`);
+    try {
+        // Hitting our own endpoints to trigger the route handlers and populate cache automatically
+        await axios.get(`http://localhost:${PORT}/api/categories`);
+        await axios.get(`http://localhost:${PORT}/api/trending`);
+        await axios.get(`http://localhost:${PORT}/api/newest`);
+        console.log(`[Worker ${process.pid}] Pre-warm complete! Cache is super ready.`);
+    } catch (e) {
+        console.log(`[Worker ${process.pid}] Pre-warm failed:`, e.message);
+    }
+}
+
 if (cluster.isPrimary && numCPUs > 1) {
     console.log(`Master Server is running. Starting ${numCPUs} workers...`);
     for (let i = 0; i < numCPUs; i++) {
@@ -667,5 +719,6 @@ if (cluster.isPrimary && numCPUs > 1) {
 } else {
     app.listen(PORT, () => {
         console.log(`Worker ${process.pid} is running on port ${PORT}`);
+        prewarmCache(); // Pre-fetch data on start
     });
 }

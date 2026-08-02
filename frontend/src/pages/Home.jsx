@@ -217,6 +217,7 @@ export default function Home() {
                       alt={cat.name}
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
+                      referrerPolicy="no-referrer"
                     />
                     <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/85 via-black/25 to-transparent"></div>
                     <div className="absolute inset-0 flex flex-col justify-end p-3 md:p-4">
@@ -260,6 +261,7 @@ export default function Home() {
                       alt={cat.name}
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
+                      referrerPolicy="no-referrer"
                     />
                     <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/85 via-black/25 to-transparent"></div>
                     <div className="absolute inset-0 flex flex-col justify-end p-3 md:p-4">
