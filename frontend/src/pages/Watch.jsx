@@ -576,7 +576,7 @@ export default function Watch() {
             </div>
           </div>
         ) : error ? (
-          <div className="w-full aspect-video bg-red-500/10 rounded-lg flex flex-col items-center justify-center border border-red-500/20 p-8">
+          <div className="w-full aspect-video bg-[#2a1216] rounded-lg flex flex-col items-center justify-center border border-[#ff2a5f] p-8">
             <AlertCircle className="w-14 h-14 md:w-16 md:h-16 text-red-500 mb-5" />
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">Stream Error</h2>
             <p className="text-gray-400 text-sm md:text-base">{error}</p>
@@ -906,7 +906,7 @@ export default function Watch() {
                 </h1>
 
                 {/* Uploader, Stats, Actions Row */}
-                <div className="flex flex-col md:flex-row items-start md:items-center gap-6 pb-4 border-b border-white/10">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-6 pb-4 border-b border-[#2a2a35]">
                   {/* Left Side: Uploader */}
                   <div className="flex items-center gap-3">
                     {videoData.uploader ? (
@@ -915,11 +915,11 @@ export default function Watch() {
                           <img 
                             src={videoData.uploader.avatar} 
                             alt={videoData.uploader.name || videoData.uploader.username} 
-                            className="w-12 h-12 rounded-full object-cover border border-white/10"
+                            className="w-12 h-12 rounded-full object-cover border border-[#2a2a35]"
                           />
                         ) : (
-                          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
-                            <User className="w-6 h-6 text-white/70" />
+                          <div className="w-12 h-12 rounded-full bg-[#1a1a24] flex items-center justify-center border border-[#2a2a35]">
+                            <User className="w-6 h-6 text-gray-400" />
                           </div>
                         )}
                         <div className="flex flex-col">
@@ -935,8 +935,8 @@ export default function Watch() {
                       </>
                     ) : (
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
-                          <User className="w-6 h-6 text-white/70" />
+                        <div className="w-12 h-12 rounded-full bg-[#1a1a24] flex items-center justify-center border border-[#2a2a35]">
+                          <User className="w-6 h-6 text-gray-400" />
                         </div>
                         <span className="text-sm md:text-base font-bold text-white">Unknown Creator</span>
                       </div>
@@ -946,18 +946,18 @@ export default function Watch() {
                   {/* Right Side: Actions & Stats */}
                   <div className="flex items-center gap-2 md:gap-3 overflow-x-auto pb-1 md:pb-0 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden w-full md:w-auto">
                     {videoData.views && (
-                      <span className="flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/10 px-3 md:px-4 py-1.5 md:py-2 rounded-full text-gray-300 font-medium text-xs md:text-sm transition-colors cursor-default flex-shrink-0">
+                      <span className="flex items-center justify-center gap-1.5 bg-[#1a1a24] hover:bg-[#2a2a35] px-3 md:px-4 py-1.5 md:py-2 rounded-full text-gray-300 font-medium text-xs md:text-sm transition-colors cursor-default flex-shrink-0">
                         <Eye className="w-3.5 h-3.5 text-gray-400" /> {videoData.views}
                       </span>
                     )}
 
-                    <div className="w-[1px] h-5 md:h-6 bg-white/10 mx-0.5 md:mx-1 hidden sm:block flex-shrink-0"></div>
+                    <div className="w-[1px] h-5 md:h-6 bg-[#2a2a35] mx-0.5 md:mx-1 hidden sm:block flex-shrink-0"></div>
                     <button 
                       onClick={() => setIsLiked(!isLiked)} 
                       className={`flex items-center justify-center gap-1.5 md:gap-2 px-4 md:px-5 py-1.5 md:py-2 rounded-full transition-all font-semibold text-xs md:text-sm active:scale-95 flex-shrink-0 ${
                         isLiked 
-                          ? 'bg-[#ff2a5f]/20 text-[#ff2a5f]' 
-                          : 'bg-white/5 text-white hover:bg-[#ff2a5f]/20 hover:text-[#ff2a5f]'
+                          ? 'bg-[#ff2a5f] text-white' 
+                          : 'bg-[#1a1a24] text-white hover:bg-[#ff2a5f] hover:text-white'
                       }`}
                     >
                       <Heart className="w-3.5 h-3.5 md:w-4 md:h-4" fill={isLiked ? 'currentColor' : 'none'} /> Like
@@ -979,7 +979,7 @@ export default function Watch() {
                           alert('Link copied to clipboard!');
                         }
                       }} 
-                      className="flex items-center justify-center gap-1.5 md:gap-2 bg-white/5 hover:bg-white/10 text-white px-4 md:px-5 py-1.5 md:py-2 rounded-full transition-all font-semibold text-xs md:text-sm active:scale-95 flex-shrink-0"
+                      className="flex items-center justify-center gap-1.5 md:gap-2 bg-[#1a1a24] hover:bg-[#2a2a35] text-white px-4 md:px-5 py-1.5 md:py-2 rounded-full transition-all font-semibold text-xs md:text-sm active:scale-95 flex-shrink-0"
                     >
                       <Share2 className="w-3.5 h-3.5 md:w-4 md:h-4" /> Share
                     </button>
@@ -987,7 +987,7 @@ export default function Watch() {
                       <a 
                         href={`${import.meta.env.VITE_API_BASE_URL}${videoData.proxy_url}&download=true&title=${encodeURIComponent(videoData.title || 'video')}`}
                         download
-                        className="flex items-center justify-center gap-1.5 md:gap-2 bg-white/5 hover:bg-white/10 text-white px-4 md:px-5 py-1.5 md:py-2 rounded-full transition-all font-semibold text-xs md:text-sm active:scale-95 flex-shrink-0"
+                        className="flex items-center justify-center gap-1.5 md:gap-2 bg-[#1a1a24] hover:bg-[#2a2a35] text-white px-4 md:px-5 py-1.5 md:py-2 rounded-full transition-all font-semibold text-xs md:text-sm active:scale-95 flex-shrink-0"
                       >
                         <Download className="w-3.5 h-3.5 md:w-4 md:h-4" /> Download
                       </a>
@@ -998,7 +998,7 @@ export default function Watch() {
             </div>
 
             {/* Bottom Section: Creator Videos & Related Videos */}
-            <div className="w-full space-y-10 border-t border-white/10 pt-8">
+            <div className="w-full space-y-10 border-t border-[#2a2a35] pt-8">
 
 
               {/* Related Videos */}
@@ -1012,7 +1012,7 @@ export default function Watch() {
                     >
                       <span>Autoplay</span>
                       <div 
-                        className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${autoPlayNext ? 'bg-[#ff2a5f]' : 'bg-white/20'}`}
+                        className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${autoPlayNext ? 'bg-[#ff2a5f]' : 'bg-[#2a2a35]'}`}
                       >
                         <div 
                           className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${autoPlayNext ? 'translate-x-3' : 'translate-x-0'}`}
@@ -1027,7 +1027,7 @@ export default function Watch() {
                         <Link 
                           to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} 
                           key={index} 
-                          className="group flex flex-col gap-2.5 hover:bg-white/5 p-2 -m-2 rounded-xl transition-all duration-300"
+                          className="group flex flex-col gap-2.5 hover:bg-[#1a1a24] p-2 -m-2 rounded-xl transition-all duration-300"
                         >
                           {/* Thumbnail */}
                           <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black flex-shrink-0">
@@ -1036,7 +1036,7 @@ export default function Watch() {
                             )}
 
                             {video.duration && (
-                              <div className="absolute bottom-0.5 right-0.5 bg-black/85 backdrop-blur-md px-1.5 py-0.5 rounded-md text-[9px] font-semibold text-white flex items-center gap-0.5">
+                              <div className="absolute bottom-0.5 right-0.5 bg-black px-1.5 py-0.5 rounded-md text-[9px] font-semibold text-white flex items-center gap-0.5">
                                 <Clock className="w-2 h-2 text-[#ff2a5f]" /> {video.duration}
                               </div>
                             )}
@@ -1061,7 +1061,7 @@ export default function Watch() {
                     <div className="mt-4 flex justify-center">
                       <button
                         onClick={() => setRelatedVisibleCount(prev => prev + 10)}
-                        className="w-full bg-white/5 hover:bg-[#ff2a5f]/20 border border-white/10 hover:border-[#ff2a5f]/50 py-2 rounded-xl text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                        className="w-full bg-[#1a1a24] hover:bg-[#ff2a5f] border border-[#2a2a35] hover:border-[#ff2a5f] py-2 rounded-xl text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95"
                       >
                         Show More <ChevronDown className="w-3.5 h-3.5" />
                       </button>
@@ -1072,7 +1072,7 @@ export default function Watch() {
             </div>
           </div>
         ) : (
-          <div className="w-full aspect-video bg-red-500/10 rounded-2xl flex flex-col items-center justify-center border border-red-500/20 p-8">
+          <div className="w-full aspect-video bg-[#2a1216] rounded-2xl flex flex-col items-center justify-center border border-[#ff2a5f] p-8">
             <AlertCircle className="w-14 h-14 md:w-16 md:h-16 text-red-500 mb-5" />
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">No Stream Found</h2>
             <p className="text-gray-400 text-sm md:text-base">Could not find a playable video source.</p>

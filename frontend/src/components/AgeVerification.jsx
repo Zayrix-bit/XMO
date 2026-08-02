@@ -29,19 +29,19 @@ export default function AgeVerification({ isVerified, setIsVerified }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6">
+    <div className="fixed inset-0 bg-[#0a0a0f] z-[100] flex items-center justify-center p-3 sm:p-4 md:p-6">
       {/* Close Button (appears after 3 seconds) */}
       {showClose && (
         <button
           onClick={handleDecline}
-          className="absolute top-3 right-3 sm:top-4 sm:right-4 text-white/70 hover:text-white"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 text-gray-400 hover:text-white"
         >
           <X className="w-6 h-6 sm:w-8 sm:h-8" />
         </button>
       )}
 
       {/* Main Popup Box */}
-      <div className="bg-[#1a1a1a] border border-white/10 rounded-lg sm:rounded-xl max-w-sm sm:max-w-md md:max-w-2xl lg:max-w-2xl w-full p-3 sm:p-4 md:p-6 lg:p-6">
+      <div className="bg-[#121218] border border-[#2a2a35] rounded-lg sm:rounded-xl max-w-sm sm:max-w-md md:max-w-2xl lg:max-w-2xl w-full p-3 sm:p-4 md:p-6 lg:p-6">
         <div className="text-center space-y-3 sm:space-y-4 md:space-y-5">
           {/* Heading Section */}
           <div className="space-y-1 sm:space-y-2">
@@ -83,7 +83,7 @@ export default function AgeVerification({ isVerified, setIsVerified }) {
           </div>
 
           {/* Bottom Link */}
-          <div className="pt-2 sm:pt-3 border-t border-white/10">
+          <div className="pt-2 sm:pt-3 border-t border-[#2a2a35]">
             <button
               onClick={handleDecline}
               className="text-gray-400 hover:text-white underline text-xs sm:text-sm md:text-base"

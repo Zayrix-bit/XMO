@@ -110,17 +110,17 @@ export default function Creator() {
         <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" /> Back
       </button>
 
-      <div className="bg-[#121218] rounded-2xl p-6 md:p-8 border border-white/5 mb-8">
+      <div className="bg-[#121218] rounded-2xl p-6 md:p-8 border border-[#2a2a35] mb-8">
         <div className="flex flex-col md:flex-row items-center gap-6">
           {creatorData?.avatar ? (
             <img
               src={creatorData.avatar}
               alt={creatorData?.name || slug}
-              className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-2 border-white/10"
+              className="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-2 border-[#2a2a35]"
             />
           ) : (
-            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-white/10 flex items-center justify-center border-2 border-white/10">
-              <User className="w-10 h-10 md:w-14 md:h-14 text-white/70" />
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-[#1a1a24] flex items-center justify-center border-2 border-[#2a2a35]">
+              <User className="w-10 h-10 md:w-14 md:h-14 text-gray-400" />
             </div>
           )}
           <div className="text-center md:text-left">
@@ -158,7 +158,7 @@ export default function Creator() {
             <Link
               to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`}
               key={index}
-              className="group bg-[#121218] rounded-xl border border-white/5 hover:border-[#ff2a5f]/30 transition-all duration-200 overflow-hidden active:scale-95"
+              className="group bg-[#121218] rounded-xl border border-[#2a2a35] hover:border-[#ff2a5f] transition-all duration-200 overflow-hidden active:scale-95"
             >
               <div className="relative aspect-video">
                 {video.image && (
@@ -166,7 +166,7 @@ export default function Creator() {
                 )}
 
                 {video.duration && (
-                  <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md px-2 py-1 rounded text-xs font-semibold text-white flex items-center gap-1">
+                  <div className="absolute bottom-2 right-2 bg-black px-2 py-1 rounded text-xs font-semibold text-white flex items-center gap-1">
                     <Clock className="w-3 h-3 text-[#ff2a5f]" /> {video.duration}
                   </div>
                 )}
@@ -191,7 +191,7 @@ export default function Creator() {
         <div className="mt-8 flex justify-center">
           <button
             onClick={() => setPage(p => p + 1)}
-            className="bg-white/5 hover:bg-[#ff2a5f]/20 border border-white/10 hover:border-[#ff2a5f]/50 py-3 px-8 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 active:scale-95"
+            className="bg-[#1a1a24] hover:bg-[#ff2a5f] border border-[#2a2a35] hover:border-[#ff2a5f] py-3 px-8 rounded-xl text-white font-semibold transition-all flex items-center justify-center gap-2 active:scale-95"
           >
             Load More
           </button>
