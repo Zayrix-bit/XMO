@@ -174,13 +174,13 @@ export default function Home() {
       {tab !== 'categories' && displayAllCategories.length > 0 && (
         <div className="mb-10">
           <h2 className="text-base md:text-lg font-semibold text-white mb-4">Popular Categories</h2>
-          <div className="bg-[#121218]/40 border border-white/[0.04] p-2.5 md:p-4 rounded-xl">
+          <div className="bg-[#121218] border border-[#2a2a35] p-2.5 md:p-4 rounded-xl">
             <div className="flex overflow-x-auto gap-2 [-ms-overflow-style:'none'] [scrollbar-width:'none'] [&::-webkit-scrollbar]:hidden">
               {displayAllCategories.slice(0, 20).map((cat, i) => (
                 <Link
                   key={i}
                   to={`/?tab=category&slug=${cat.slug}`}
-                  className="bg-[#181822] hover:bg-[#20202c] px-3 py-1.5 rounded-lg text-[11px] sm:text-xs md:text-sm font-medium text-gray-300 hover:text-white transition-all border border-white/[0.06] whitespace-nowrap flex-shrink-0"
+                  className="bg-[#181822] hover:bg-[#20202c] px-3 py-1.5 rounded-lg text-[11px] sm:text-xs md:text-sm font-medium text-gray-300 hover:text-white transition-all border border-[#2a2a35] whitespace-nowrap flex-shrink-0"
                 >
                   {cat.name}
                 </Link>
@@ -188,7 +188,7 @@ export default function Home() {
               {displayAllCategories.length > 20 && (
                 <Link
                   to="/?tab=categories"
-                  className="bg-[#181822] hover:bg-[#20202c] px-3 py-1.5 rounded-lg text-[11px] sm:text-xs md:text-sm font-medium text-[#ff2a5f] hover:text-[#ff4a75] transition-all border border-white/[0.06] whitespace-nowrap flex-shrink-0 flex items-center gap-1"
+                  className="bg-[#181822] hover:bg-[#20202c] px-3 py-1.5 rounded-lg text-[11px] sm:text-xs md:text-sm font-medium text-[#ff2a5f] hover:text-[#ff4a75] transition-all border border-[#2a2a35] whitespace-nowrap flex-shrink-0 flex items-center gap-1"
                 >
                   View All <ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
                 </Link>
@@ -208,7 +208,7 @@ export default function Home() {
               <Link 
                 key={i} 
                 to={`/?tab=category&slug=${cat.slug}`}
-                className="relative aspect-[16/9] rounded-lg overflow-hidden group transition-all border border-white/[0.06]"
+                className="relative aspect-[16/9] rounded-lg overflow-hidden group transition-all border border-[#2a2a35]"
               >
                 {cat.image ? (
                   <>
@@ -252,7 +252,7 @@ export default function Home() {
               <Link 
                 key={i} 
                 to={`/?tab=category&slug=${cat.slug}`}
-                className="relative aspect-[16/9] rounded-lg overflow-hidden group transition-all border border-white/[0.06]"
+                className="relative aspect-[16/9] rounded-lg overflow-hidden group transition-all border border-[#2a2a35]"
               >
                 {cat.image ? (
                   <>
@@ -301,13 +301,13 @@ export default function Home() {
                       {video.image ? (
                         <HoverPreview video={video} />
                       ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-[#121218] to-[#181822] flex items-center justify-center">
+                        <div className="w-full h-full bg-[#181822] flex items-center justify-center">
                           <Play className="w-8 h-8 text-gray-600" />
                         </div>
                       )}
 
                       {video.duration && (
-                        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 rounded text-xs font-semibold text-white">
+                        <div className="absolute bottom-2 right-2 bg-black px-2 py-0.5 rounded text-xs font-semibold text-white">
                           {video.duration}
                         </div>
                       )}
@@ -343,7 +343,7 @@ export default function Home() {
               <button 
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page <= 1}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#121218] border border-white/[0.06] text-gray-300 hover:text-white hover:bg-[#181822] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm"
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#121218] border border-[#2a2a35] text-gray-300 hover:text-white hover:bg-[#181822] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-sm"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
@@ -358,8 +358,8 @@ export default function Home() {
                       onClick={() => handlePageChange(pageNum)}
                       className={`w-10 h-10 flex items-center justify-center rounded-lg font-semibold text-sm transition-all ${
                         page === pageNum 
-                          ? 'bg-[#ff2a5f] text-white shadow-lg shadow-[#ff2a5f]/25' 
-                          : 'bg-[#121218] border border-white/[0.06] text-gray-400 hover:bg-[#181822] hover:text-white'
+                          ? 'bg-[#ff2a5f] text-white' 
+                          : 'bg-[#121218] border border-[#2a2a35] text-gray-400 hover:bg-[#181822] hover:text-white'
                       }`}
                     >
                       {pageNum}
@@ -370,7 +370,7 @@ export default function Home() {
 
               <button 
                 onClick={() => handlePageChange(page + 1)}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#121218] border border-white/[0.06] text-gray-300 hover:text-white hover:bg-[#181822] transition-all font-medium text-sm"
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#121218] border border-[#2a2a35] text-gray-300 hover:text-white hover:bg-[#181822] transition-all font-medium text-sm"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
