@@ -8,6 +8,7 @@ import Disclaimer from './pages/Disclaimer';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AgeVerification from './components/AgeVerification';
+import BannerAd from './components/BannerAd';
 
 function App() {
   const [isVerified, setIsVerified] = useState(() => localStorage.getItem('ageVerified') === 'true');
@@ -33,6 +34,7 @@ function App() {
         {!isVerified && <AgeVerification isVerified={isVerified} setIsVerified={setIsVerified} />}
         
         {isVerified && <Navbar />}
+        {isVerified && <BannerAd />}
         <main className="flex-1 max-w-[1600px] mx-auto w-full">
           <Routes>
             <Route path="/" element={<Home />} />
