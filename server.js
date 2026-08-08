@@ -1,14 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const axios = require('axios');
-const cheerio = require('cheerio');
-const fs = require('fs');
-const path = require('path');
 const cluster = require('cluster');
-const os = require('os');
-const http = require('http');
-const https = require('https');
+const { Readable } = require('stream');
 
 dotenv.config();
 
@@ -111,18 +105,7 @@ function getHeaders(domain = 'xhamster.desi') {
     return headers;
 }
 
-const httpAgent = new http.Agent({ keepAlive: true });
-const httpsAgent = new https.Agent({ keepAlive: true });
-
-function getClient() {
-    return axios.create({
-        timeout: 30000,
-        maxRedirects: 5,
-        validateStatus: () => true,
-        httpAgent,
-        httpsAgent
-    });
-}
+// Removed axios client setup for lightweight fetch
 
 function extractPageData(html) {
     let largestData = null;
@@ -228,24 +211,26 @@ function parseVideoList(pageData) {
     return videos;
 }
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+// Removed unused sleep function
 
 async function fetchHtmlAxios(url) {
-    const client = getClient();
     try {
         const domain = new URL(url).hostname;
         const headers = getHeaders(domain);
-        const res = await client.get(url, { headers });
+        
+        // Use native fetch to be lightweight
+        const res = await fetch(url, { headers, redirect: 'follow' });
         
         // Capture and update cookies from response to maintain session state
-        if (res.headers['set-cookie']) {
-            updateCookies(res.headers['set-cookie']);
+        const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
+        if (setCookies.length > 0) {
+            updateCookies(setCookies);
         }
         
         if (res.status !== 200 && res.status !== 404) {
-            console.log(`[AXIOS] Non-200 status ${res.status} on ${url}`);
+            console.log(`[FETCH] Non-200 status ${res.status} on ${url}`);
         }
-        return res.data;
+        return await res.text();
     } catch (e) {
         throw e;
     }
@@ -315,6 +300,10 @@ function cacheResponse(ttlSeconds) {
                 res.end = noop;
                 res.json = (body) => {
                     if (body && body.status === 'success') {
+                        if (cache.size > 1000) {
+                            const firstKey = cache.keys().next().value;
+                            cache.delete(firstKey);
+                        }
                         cache.set(key, { timestamp: Date.now(), data: body });
                     }
                 };
@@ -325,6 +314,10 @@ function cacheResponse(ttlSeconds) {
         const originalJson = res.json;
         res.json = (body) => {
             if (body && body.status === 'success') {
+                if (cache.size > 1000) {
+                    const firstKey = cache.keys().next().value;
+                    cache.delete(firstKey);
+                }
                 cache.set(key, { timestamp: Date.now(), data: body });
             }
             if (!res.headersSent) {
@@ -457,15 +450,28 @@ app.get('/api/categories', cacheResponse(86400), async (req, res) => {
         
         if (pageData) extractCatsFromJson(pageData);
 
-        // 2. Fallback to Cheerio HTML extraction if JSON missed some
-        const $ = cheerio.load(html);
-        $('a').each((i, el) => {
-            const href = $(el).attr('href') || '';
-            const name = $(el).text().trim() || $(el).attr('title') || '';
-            const imgTag = $(el).find('img');
-            const image = imgTag.attr('src') || imgTag.attr('data-src') || '';
+        // 2. Fallback to Regex HTML extraction if JSON missed some
+        const aTagRegex = /<a\b[^>]*>([\s\S]*?)<\/a>/gi;
+        const hrefRegex = /href="([^"]+)"/i;
+        const titleRegex = /title="([^"]+)"/i;
+        const imgRegex = /<img\b[^>]*(?:src|data-src)="([^"]+)"/i;
+        
+        let match;
+        while ((match = aTagRegex.exec(html)) !== null) {
+            const aTagContent = match[0];
+            const hrefMatch = hrefRegex.exec(aTagContent);
+            if (!hrefMatch) continue;
+            
+            const href = hrefMatch[1];
+            const titleMatch = titleRegex.exec(aTagContent);
+            const innerText = match[1].replace(/<[^>]+>/g, '').trim();
+            const name = (titleMatch ? titleMatch[1] : innerText).trim();
+            
+            const imgMatch = imgRegex.exec(aTagContent);
+            const image = imgMatch ? imgMatch[1] : '';
+            
             processCat(name, href, image);
-        });
+        }
 
         const COUNTRY_SLUGS = new Set([
             'indian', 'desi', 'russian', 'american', 'british', 'japanese', 'korean', 'chinese', 'german', 'french',
@@ -523,10 +529,13 @@ app.get('/api/video', cacheResponse(600), async (req, res) => {
         const parsedUrl = new URL(videoUrl);
         const domain = parsedUrl.hostname;
         const html = await fetchHtmlAxios(videoUrl);
-        const $ = cheerio.load(html);
         const pageData = extractPageData(html);
 
-        let videoTitle = $('h1.with-player-container').text().trim() || $('h1').text().trim() || 'Untitled Video';
+        let videoTitle = 'Untitled Video';
+        const titleMatch = html.match(/<h1[^>]*class="[^"]*with-player-container[^"]*"[^>]*>([\s\S]*?)<\/h1>/i) || html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+        if (titleMatch) {
+            videoTitle = titleMatch[1].replace(/<[^>]+>/g, '').trim();
+        }
 
         let views = null;
         let uploader = null;
@@ -609,18 +618,15 @@ app.get('/api/proxy', async (req, res) => {
             proxyHeaders['Range'] = req.headers.range;
         }
 
-        const client = getClient();
-        const response = await client.get(url, {
-            headers: proxyHeaders,
-            responseType: 'stream'
-        });
+        const response = await fetch(url, { headers: proxyHeaders });
 
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', '*');
 
         ['content-type', 'content-length', 'content-range', 'accept-ranges', 'cache-control'].forEach(h => {
-            if (response.headers[h]) res.setHeader(h, response.headers[h]);
+            const val = response.headers.get(h);
+            if (val) res.setHeader(h, val);
         });
 
         if (isDownload) {
@@ -630,7 +636,11 @@ app.get('/api/proxy', async (req, res) => {
         }
 
         res.status(response.status);
-        response.data.pipe(res);
+        if (response.body) {
+            Readable.fromWeb(response.body).pipe(res);
+        } else {
+            res.end();
+        }
 
     } catch (e) {
         res.status(500).json({ status: "error", message: e.message });
@@ -650,11 +660,9 @@ app.get('/api/hls-proxy', async (req, res) => {
         const proxyHeaders = getHeaders(refererDomain);
         proxyHeaders['Origin'] = `https://${refererDomain}`;
 
-        const client = getClient();
-        const response = await client.get(url, { headers: proxyHeaders, responseType: 'text' });
-
-        let content = response.data;
-        const contentType = response.headers['content-type'] || 'application/vnd.apple.mpegurl';
+        const response = await fetch(url, { headers: proxyHeaders });
+        let content = await response.text();
+        const contentType = response.headers.get('content-type') || 'application/vnd.apple.mpegurl';
 
         if (url.includes('.m3u8') || contentType.toLowerCase().includes('mpegurl') || content.trim().startsWith('#EXTM3U')) {
             let rewritten = [];
@@ -702,12 +710,17 @@ app.get('/api/hls-proxy', async (req, res) => {
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             res.send(rewritten.join('\n'));
         } else {
-            const streamRes = await client.get(url, { headers: proxyHeaders, responseType: 'stream' });
+            const streamRes = await fetch(url, { headers: proxyHeaders });
             res.setHeader('Access-Control-Allow-Origin', '*');
             ['content-type', 'content-length'].forEach(h => {
-                if (streamRes.headers[h]) res.setHeader(h, streamRes.headers[h]);
+                const val = streamRes.headers.get(h);
+                if (val) res.setHeader(h, val);
             });
-            streamRes.data.pipe(res);
+            if (streamRes.body) {
+                Readable.fromWeb(streamRes.body).pipe(res);
+            } else {
+                res.end();
+            }
         }
     } catch (e) {
         res.status(500).json({ status: "error", message: e.message });
@@ -721,9 +734,9 @@ async function prewarmCache() {
     console.log(`[Worker ${process.pid}] Pre-warming cache (Trending, Newest, Categories)...`);
     try {
         // Hitting our own endpoints to trigger the route handlers and populate cache automatically
-        await axios.get(`http://localhost:${PORT}/api/categories`);
-        await axios.get(`http://localhost:${PORT}/api/trending`);
-        await axios.get(`http://localhost:${PORT}/api/newest`);
+        await fetch(`http://localhost:${PORT}/api/categories`);
+        await fetch(`http://localhost:${PORT}/api/trending`);
+        await fetch(`http://localhost:${PORT}/api/newest`);
         console.log(`[Worker ${process.pid}] Pre-warm complete! Cache is super ready.`);
     } catch (e) {
         console.log(`[Worker ${process.pid}] Pre-warm failed:`, e.message);
