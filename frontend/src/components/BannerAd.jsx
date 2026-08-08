@@ -18,7 +18,7 @@ export default function BannerAd() {
   }, []);
 
   return (
-    <div className="w-full flex justify-center my-4 overflow-hidden min-h-[90px]">
+    <div className="w-full flex justify-center my-4 overflow-hidden min-h-[50px] md:min-h-[250px] max-w-full">
       {/* ExoClick Banner Tag */}
       <ins className="eas6a97888e2" data-zoneid="5998010"></ins>
     </div>
