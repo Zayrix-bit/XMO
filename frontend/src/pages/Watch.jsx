@@ -26,6 +26,15 @@ export default function Watch() {
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
+  // VAST Ad States
+  const [imaLoaded, setImaLoaded] = useState(false);
+  const [isAdPlaying, setIsAdPlaying] = useState(false);
+  const [adFinished, setAdFinished] = useState(false);
+  const adDisplayContainerRef = useRef(null);
+  const adsLoaderRef = useRef(null);
+  const adsManagerRef = useRef(null);
+  const adContainerRef = useRef(null);
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (showSettingsMenu && !e.target.closest('#anchor-settings')) {
@@ -124,7 +133,133 @@ export default function Watch() {
     if (id) fetchVideo();
   }, [id, originalUrl]);
 
+  // Reset Ad state on new video load
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAdFinished(false);
+    setIsAdPlaying(false);
+    if (adsManagerRef.current) {
+      adsManagerRef.current.destroy();
+      adsManagerRef.current = null;
+    }
+    if (adsLoaderRef.current) {
+      adsLoaderRef.current.destroy();
+      adsLoaderRef.current = null;
+    }
+  }, [id]);
 
+  // Wait for IMA SDK to load
+  useEffect(() => {
+    if (window.google && window.google.ima) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (imaLoaded !== true) setImaLoaded(true);
+      return;
+    }
+    const interval = setInterval(() => {
+      if (window.google && window.google.ima) {
+        setImaLoaded(true);
+        clearInterval(interval);
+      }
+    }, 200);
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      if (imaLoaded !== true) setImaLoaded('failed');
+    }, 3000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [imaLoaded]);
+
+  // IMA SDK Ad Initialization
+  useEffect(() => {
+    if (!videoData || !videoRef.current || !adContainerRef.current) return;
+    if (imaLoaded === false) return; // Wait for IMA to load or fail
+    
+    // Only initialize ads once per video load
+    if (window.google && window.google.ima && !adFinished && !isAdPlaying && !adsLoaderRef.current) {
+      const videoElement = videoRef.current;
+      const adContainerElement = adContainerRef.current;
+
+      const adDisplayContainer = new window.google.ima.AdDisplayContainer(adContainerElement, videoElement);
+      adDisplayContainerRef.current = adDisplayContainer;
+
+      const adsLoader = new window.google.ima.AdsLoader(adDisplayContainer);
+      adsLoaderRef.current = adsLoader;
+
+      const onAdError = (adErrorEvent) => {
+        console.error("IMA Ad Error:", adErrorEvent);
+        setIsAdPlaying(false);
+        setAdFinished(true);
+        if (adsManagerRef.current) {
+          adsManagerRef.current.destroy();
+        }
+        videoElement.play().catch(() => {});
+      };
+
+      const onAdsManagerLoaded = (adsManagerLoadedEvent) => {
+        const adsManager = adsManagerLoadedEvent.getAdsManager(videoElement);
+        adsManagerRef.current = adsManager;
+
+        adsManager.addEventListener(window.google.ima.AdErrorEvent.Type.AD_ERROR, onAdError);
+        adsManager.addEventListener(window.google.ima.AdEvent.Type.CONTENT_PAUSE_REQUEST, () => {
+          setIsAdPlaying(true);
+          videoElement.pause();
+        });
+        adsManager.addEventListener(window.google.ima.AdEvent.Type.CONTENT_RESUME_REQUEST, () => {
+          setIsAdPlaying(false);
+          setAdFinished(true);
+          videoElement.play().catch(() => {});
+        });
+        adsManager.addEventListener(window.google.ima.AdEvent.Type.ALL_ADS_COMPLETED, () => {
+          setIsAdPlaying(false);
+          setAdFinished(true);
+          videoElement.play().catch(() => {});
+        });
+
+        try {
+          adsManager.init(videoElement.clientWidth, videoElement.clientHeight, window.google.ima.ViewMode.NORMAL);
+          adsManager.start();
+        } catch (adError) {
+          onAdError(adError);
+        }
+      };
+
+      adsLoader.addEventListener(window.google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED, onAdsManagerLoaded, false);
+      adsLoader.addEventListener(window.google.ima.AdErrorEvent.Type.AD_ERROR, onAdError, false);
+
+      // Using Google's test VAST tag. Replace with ExoClick/TrafficJunky VAST URL.
+      const adsRequest = new window.google.ima.AdsRequest();
+      adsRequest.adTagUrl = 'https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/single_ad_samples&sz=640x480&cust_params=sample_ct%3Dlinear&ciu_szs=300x250%2C728x90&gdfp_req=1&output=vast&unviewed_position_start=1&env=vp&impl=s&correlator=';
+      
+      adsRequest.linearAdSlotWidth = videoElement.clientWidth;
+      adsRequest.linearAdSlotHeight = videoElement.clientHeight;
+
+      // Autoplay ad
+      adDisplayContainer.initialize();
+      try {
+        adsLoader.requestAds(adsRequest);
+      } catch (e) {
+        onAdError(e);
+      }
+    } else if (imaLoaded === 'failed' && !adFinished) {
+      // AdBlocker detected or IMA SDK failed to load
+      console.log("AdBlocker detected or IMA failed, skipping ad...");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAdFinished(true);
+      if (videoRef.current) {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [videoData, adFinished, isAdPlaying, imaLoaded]);
+
+  // Clean up IMA SDK on unmount
+  useEffect(() => {
+    return () => {
+      if (adsManagerRef.current) adsManagerRef.current.destroy();
+      if (adsLoaderRef.current) adsLoaderRef.current.destroy();
+    };
+  }, []);
 
   // Setup HLS.js or fallback to MP4
   useEffect(() => {
@@ -169,7 +304,9 @@ export default function Watch() {
         setCurrentQuality(-1);
         hls.currentLevel = -1;
         
-        video.play().catch(() => {});
+        if (adFinished) {
+          video.play().catch(() => {});
+        }
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
@@ -197,7 +334,9 @@ export default function Watch() {
     // Fallback: direct MP4
     else if (mp4Url) {
       video.src = mp4Url;
-      video.play().catch(() => {});
+      if (adFinished) {
+        video.play().catch(() => {});
+      }
       return () => {
         video.removeEventListener('ended', handleVideoEnd);
       };
@@ -205,12 +344,16 @@ export default function Watch() {
     return () => {
       video.removeEventListener('ended', handleVideoEnd);
     };
-  }, [videoData, relatedVideos, navigate]);
+  }, [videoData, relatedVideos, navigate, adFinished]);
 
   // Video Action Helper Functions
   const togglePlay = () => {
     setShowSettingsMenu(false);
     if (!videoRef.current) return;
+    
+    // If ad is playing, do not toggle main video
+    if (isAdPlaying) return;
+
     if (isPlaying) {
       videoRef.current.pause();
     } else {
@@ -601,16 +744,23 @@ export default function Watch() {
                   crossOrigin="anonymous" 
                   playsInline 
                   preload="auto"
-                  autoPlay
                   poster={videoData.related?.[0]?.image || ''}
                 ></video>
 
+                {/* Ad Container overlay */}
+                <div 
+                  ref={adContainerRef} 
+                  id="ad-container" 
+                  className={`absolute top-0 left-0 w-full h-full z-50 ${isAdPlaying ? 'block' : 'hidden'}`}
+                  style={{ backgroundColor: 'black' }}
+                ></div>
+
                 {/* Click area for play/pause toggle */}
-                <div id="click-area" className="click-area" onClick={handleVideoClick} onDoubleClick={handleDoubleClick}></div>
+                <div id="click-area" className={`click-area ${isAdPlaying ? 'hidden' : ''}`} onClick={handleVideoClick} onDoubleClick={handleDoubleClick}></div>
 
                 {/* Gradient overlays for controls visibility */}
-                <div id="gradient-top" className={`gradient gradient-top ${showControls ? '' : 'hidden'}`}></div>
-                <div id="gradient-bottom" className={`gradient gradient-bottom ${showControls ? '' : 'hidden'}`}></div>
+                <div id="gradient-top" className={`gradient gradient-top ${showControls && !isAdPlaying ? '' : 'hidden'}`}></div>
+                <div id="gradient-bottom" className={`gradient gradient-bottom ${showControls && !isAdPlaying ? '' : 'hidden'}`}></div>
 
                 {/* Loading Overlay */}
                 {isBuffering && (
@@ -642,12 +792,12 @@ export default function Watch() {
                 )}
                 
                 {/* Top bar with title */}
-                <div id="top-bar" className={`top-bar ${showControls ? '' : 'hidden'}`}>
+                <div id="top-bar" className={`top-bar ${showControls && !isAdPlaying ? '' : 'hidden'}`}>
                   <span id="video-title" className="video-title">{videoData.title}</span>
                 </div>
 
                 {/* Bottom Controls */}
-                <div id="controls" className={`controls ${showControls ? '' : 'hidden'}`} onClick={(e) => e.stopPropagation()}>
+                <div id="controls" className={`controls ${showControls && !isAdPlaying ? '' : 'hidden'}`} onClick={(e) => e.stopPropagation()}>
                   {/* Progress / Seek Bar */}
                   <div className="seek-container" id="seek-container"
                        onMouseDown={(e) => {

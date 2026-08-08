@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useCategories } from '../context/CategoriesContext';
 
 export default function Footer() {
-  const { categories, loading } = useCategories();
+  const { categories } = useCategories();
   
   const handleLinkClick = (e, linkText) => {
     e.preventDefault();

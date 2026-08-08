@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Home from './pages/Home';
 import Watch from './pages/Watch';
 import Creator from './pages/Creator';
@@ -10,21 +10,7 @@ import Footer from './components/Footer';
 import AgeVerification from './components/AgeVerification';
 
 function App() {
-  const [isVerified, setIsVerified] = useState(false);
-  const [isChecking, setIsChecking] = useState(true); // New state for checking localStorage
-
-  useEffect(() => {
-    const saved = localStorage.getItem('ageVerified');
-    if (saved === 'true') {
-      setIsVerified(true);
-    }
-    setIsChecking(false); // Done checking after we've read localStorage
-  }, []);
-
-  // Don't render anything (or just a blank screen) until we've checked!
-  if (isChecking) {
-    return <div className="min-h-screen bg-[#0f0f13]"></div>;
-  }
+  const [isVerified, setIsVerified] = useState(() => localStorage.getItem('ageVerified') === 'true');
 
   return (
     <BrowserRouter>

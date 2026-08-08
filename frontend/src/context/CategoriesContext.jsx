@@ -46,6 +46,7 @@ export function CategoriesProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useCategories() {
   return useContext(CategoriesContext);
 }
