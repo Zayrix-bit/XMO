@@ -51,6 +51,20 @@ function setBypassCookies(domain) {
     globalCookies['hasSeenAgeGate'] = 'true';
 }
 
+// Initialize bypass cookies immediately
+setBypassCookies();
+
+// Periodic cache cleanup to prevent memory leaks (runs every 10 minutes)
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of cache.entries()) {
+        // Remove entries older than 24 hours to free memory
+        if (now - value.timestamp > 86400 * 1000) {
+            cache.delete(key);
+        }
+    }
+}, 10 * 60 * 1000);
+
 function getCookiesString() {
     return Object.entries(globalCookies).map(([k, v]) => `${k}=${v}`).join('; ');
 }
@@ -222,6 +236,12 @@ async function fetchHtmlAxios(url) {
         const domain = new URL(url).hostname;
         const headers = getHeaders(domain);
         const res = await client.get(url, { headers });
+        
+        // Capture and update cookies from response to maintain session state
+        if (res.headers['set-cookie']) {
+            updateCookies(res.headers['set-cookie']);
+        }
+        
         if (res.status !== 200 && res.status !== 404) {
             console.log(`[AXIOS] Non-200 status ${res.status} on ${url}`);
         }
@@ -637,7 +657,6 @@ app.get('/api/hls-proxy', async (req, res) => {
         const contentType = response.headers['content-type'] || 'application/vnd.apple.mpegurl';
 
         if (url.includes('.m3u8') || contentType.toLowerCase().includes('mpegurl') || content.trim().startsWith('#EXTM3U')) {
-            const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
             let rewritten = [];
 
             content.split('\n').forEach(line => {
@@ -649,7 +668,9 @@ app.get('/api/hls-proxy', async (req, res) => {
                         const match = line.match(/URI="([^"]+)"/);
                         if (match) {
                             let origUri = match[1];
-                            if (!origUri.startsWith('http')) origUri = baseUrl + origUri;
+                            if (!origUri.startsWith('http')) {
+                                origUri = new URL(origUri, url).href;
+                            }
                             const proxied = `/api/hls-proxy?url=${encodeURIComponent(origUri)}`;
                             const scheme = req.headers['x-forwarded-proto'] || req.protocol;
                             const host = req.headers['x-forwarded-host'] || req.get('host');
@@ -659,7 +680,9 @@ app.get('/api/hls-proxy', async (req, res) => {
                     rewritten.push(line);
                 } else {
                     let segmentUrl = line;
-                    if (!segmentUrl.startsWith('http')) segmentUrl = baseUrl + segmentUrl;
+                    if (!segmentUrl.startsWith('http')) {
+                        segmentUrl = new URL(segmentUrl, url).href;
+                    }
 
                     const scheme = req.headers['x-forwarded-proto'] || req.protocol;
                     const host = req.headers['x-forwarded-host'] || req.get('host');
