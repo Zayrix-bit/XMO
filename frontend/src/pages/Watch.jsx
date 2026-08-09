@@ -34,6 +34,8 @@ export default function Watch() {
   const adsLoaderRef = useRef(null);
   const adsManagerRef = useRef(null);
   const adContainerRef = useRef(null);
+  const adInitializedRef = useRef(false);
+  const playAdRequestedRef = useRef(false);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -138,6 +140,8 @@ export default function Watch() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAdFinished(false);
     setIsAdPlaying(false);
+    adInitializedRef.current = false;
+    playAdRequestedRef.current = false;
     if (adsManagerRef.current) {
       adsManagerRef.current.destroy();
       adsManagerRef.current = null;
@@ -194,7 +198,9 @@ export default function Watch() {
         if (adsManagerRef.current) {
           adsManagerRef.current.destroy();
         }
-        videoElement.play().catch(() => {});
+        if (playAdRequestedRef.current) {
+          videoElement.play().catch(() => {});
+        }
       };
 
       const onAdsManagerLoaded = (adsManagerLoadedEvent) => {
@@ -217,11 +223,13 @@ export default function Watch() {
           videoElement.play().catch(() => {});
         });
 
-        try {
-          adsManager.init(videoElement.clientWidth, videoElement.clientHeight, window.google.ima.ViewMode.NORMAL);
-          adsManager.start();
-        } catch (adError) {
-          onAdError(adError);
+        if (playAdRequestedRef.current) {
+          try {
+            adsManager.init(videoElement.clientWidth, videoElement.clientHeight, window.google.ima.ViewMode.NORMAL);
+            adsManager.start();
+          } catch (adError) {
+            onAdError(adError);
+          }
         }
       };
 
@@ -235,8 +243,6 @@ export default function Watch() {
       adsRequest.linearAdSlotWidth = videoElement.clientWidth;
       adsRequest.linearAdSlotHeight = videoElement.clientHeight;
 
-      // Autoplay ad
-      adDisplayContainer.initialize();
       try {
         adsLoader.requestAds(adsRequest);
       } catch (e) {
@@ -247,19 +253,31 @@ export default function Watch() {
       console.log("AdBlocker detected or IMA failed, skipping ad...");
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAdFinished(true);
-      if (videoRef.current) {
+      if (videoRef.current && playAdRequestedRef.current) {
         videoRef.current.play().catch(() => {});
       }
     }
   }, [videoData, adFinished, isAdPlaying, imaLoaded]);
 
-  // Clean up IMA SDK on unmount
+  // Clean up IMA SDK on unmount and handle resize
   useEffect(() => {
+    const handleResize = () => {
+      if (adsManagerRef.current && videoRef.current && isAdPlaying) {
+        adsManagerRef.current.resize(
+          videoRef.current.clientWidth,
+          videoRef.current.clientHeight,
+          window.google.ima.ViewMode.NORMAL
+        );
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    
     return () => {
+      window.removeEventListener('resize', handleResize);
       if (adsManagerRef.current) adsManagerRef.current.destroy();
       if (adsLoaderRef.current) adsLoaderRef.current.destroy();
     };
-  }, []);
+  }, [isAdPlaying]);
 
   // Setup HLS.js or fallback to MP4
   useEffect(() => {
@@ -304,7 +322,7 @@ export default function Watch() {
         setCurrentQuality(-1);
         hls.currentLevel = -1;
         
-        if (adFinished) {
+        if (adFinished && playAdRequestedRef.current) {
           video.play().catch(() => {});
         }
       });
@@ -334,7 +352,7 @@ export default function Watch() {
     // Fallback: direct MP4
     else if (mp4Url) {
       video.src = mp4Url;
-      if (adFinished) {
+      if (adFinished && playAdRequestedRef.current) {
         video.play().catch(() => {});
       }
       return () => {
@@ -353,6 +371,28 @@ export default function Watch() {
     
     // If ad is playing, do not toggle main video
     if (isAdPlaying) return;
+
+    // Handle ad playback if it hasn't finished yet
+    if (!adFinished && window.google && window.google.ima && imaLoaded === true) {
+      if (!adInitializedRef.current && adDisplayContainerRef.current) {
+        adDisplayContainerRef.current.initialize();
+        adInitializedRef.current = true;
+      }
+      if (!playAdRequestedRef.current) {
+        playAdRequestedRef.current = true;
+        if (adsManagerRef.current) {
+          try {
+            adsManagerRef.current.init(videoRef.current.clientWidth, videoRef.current.clientHeight, window.google.ima.ViewMode.NORMAL);
+            adsManagerRef.current.start();
+          } catch (adError) {
+            console.error("Ad start error", adError);
+            setAdFinished(true);
+            videoRef.current.play().catch(() => {});
+          }
+        }
+      }
+      return; // Ad playback is handling this, return so we don't play main video yet
+    }
 
     if (isPlaying) {
       videoRef.current.pause();
