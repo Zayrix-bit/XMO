@@ -791,8 +791,8 @@ export default function Watch() {
                 <div 
                   ref={adContainerRef} 
                   id="ad-container" 
-                  className={`absolute top-0 left-0 w-full h-full z-50 ${isAdPlaying ? 'block' : 'hidden'}`}
-                  style={{ backgroundColor: 'black' }}
+                  className={`absolute top-0 left-0 w-full h-full ${isAdPlaying ? 'z-50 opacity-100 pointer-events-auto' : 'z-0 opacity-0 pointer-events-none'}`}
+                  style={{ backgroundColor: isAdPlaying ? 'black' : 'transparent' }}
                 ></div>
 
                 {/* Click area for play/pause toggle */}
