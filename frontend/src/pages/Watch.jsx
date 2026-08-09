@@ -35,7 +35,7 @@ export default function Watch() {
   const adsManagerRef = useRef(null);
   const adContainerRef = useRef(null);
   const adInitializedRef = useRef(false);
-  const playAdRequestedRef = useRef(false);
+  const playAdRequestedRef = useRef(true);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -141,7 +141,7 @@ export default function Watch() {
     setAdFinished(false);
     setIsAdPlaying(false);
     adInitializedRef.current = false;
-    playAdRequestedRef.current = false;
+    playAdRequestedRef.current = true;
     if (adsManagerRef.current) {
       adsManagerRef.current.destroy();
       adsManagerRef.current = null;
@@ -256,6 +256,10 @@ export default function Watch() {
 
         if (playAdRequestedRef.current) {
           try {
+            if (!adInitializedRef.current && adDisplayContainerRef.current) {
+              try { adDisplayContainerRef.current.initialize(); } catch (err) { console.debug("adDisplayContainer init notice:", err); }
+              adInitializedRef.current = true;
+            }
             showAdContainer();
             const width = videoElement.clientWidth || adContainerElement.clientWidth || 640;
             const height = videoElement.clientHeight || adContainerElement.clientHeight || 360;
@@ -361,7 +365,11 @@ export default function Watch() {
         hls.currentLevel = -1;
         
         if (adFinished && playAdRequestedRef.current) {
-          video.play().catch(() => {});
+          video.play().catch(() => {
+            video.muted = true;
+            setIsMuted(true);
+            video.play().catch(() => {});
+          });
         }
       });
 
