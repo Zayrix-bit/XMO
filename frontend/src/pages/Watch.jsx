@@ -191,14 +191,42 @@ export default function Watch() {
       const adsLoader = new window.google.ima.AdsLoader(adDisplayContainer);
       adsLoaderRef.current = adsLoader;
 
+      // Configure IMA SDK Settings for VAST Wrapper Redirects (ExoClick uses Wrapper redirects)
+      try {
+        const imaSettings = adsLoader.getSettings();
+        imaSettings.setNumRedirects(10);
+        imaSettings.setAutoPlayAdBreaks(false);
+      } catch (e) {
+        console.warn("IMA settings error:", e);
+      }
+
+      const hideAdContainer = () => {
+        if (adContainerElement) {
+          adContainerElement.style.opacity = '0';
+          adContainerElement.style.zIndex = '0';
+          adContainerElement.style.pointerEvents = 'none';
+          adContainerElement.style.backgroundColor = 'transparent';
+        }
+      };
+
+      const showAdContainer = () => {
+        if (adContainerElement) {
+          adContainerElement.style.opacity = '1';
+          adContainerElement.style.zIndex = '50';
+          adContainerElement.style.pointerEvents = 'auto';
+          adContainerElement.style.backgroundColor = 'black';
+        }
+      };
+
       const onAdError = (adErrorEvent) => {
-        console.error("IMA Ad Error:", adErrorEvent);
+        console.warn("IMA Ad Error / No Fill:", adErrorEvent);
+        hideAdContainer();
         setIsAdPlaying(false);
         setAdFinished(true);
         if (adsManagerRef.current) {
-          adsManagerRef.current.destroy();
+          try { adsManagerRef.current.destroy(); } catch (err) { console.debug("IMA destroy notice:", err); }
         }
-        if (playAdRequestedRef.current) {
+        if (playAdRequestedRef.current && videoElement) {
           videoElement.play().catch(() => {});
         }
       };
@@ -209,15 +237,18 @@ export default function Watch() {
 
         adsManager.addEventListener(window.google.ima.AdErrorEvent.Type.AD_ERROR, onAdError);
         adsManager.addEventListener(window.google.ima.AdEvent.Type.CONTENT_PAUSE_REQUEST, () => {
+          showAdContainer();
           setIsAdPlaying(true);
           videoElement.pause();
         });
         adsManager.addEventListener(window.google.ima.AdEvent.Type.CONTENT_RESUME_REQUEST, () => {
+          hideAdContainer();
           setIsAdPlaying(false);
           setAdFinished(true);
           videoElement.play().catch(() => {});
         });
         adsManager.addEventListener(window.google.ima.AdEvent.Type.ALL_ADS_COMPLETED, () => {
+          hideAdContainer();
           setIsAdPlaying(false);
           setAdFinished(true);
           videoElement.play().catch(() => {});
@@ -225,7 +256,10 @@ export default function Watch() {
 
         if (playAdRequestedRef.current) {
           try {
-            adsManager.init(videoElement.clientWidth, videoElement.clientHeight, window.google.ima.ViewMode.NORMAL);
+            showAdContainer();
+            const width = videoElement.clientWidth || adContainerElement.clientWidth || 640;
+            const height = videoElement.clientHeight || adContainerElement.clientHeight || 360;
+            adsManager.init(width, height, window.google.ima.ViewMode.NORMAL);
             adsManager.start();
           } catch (adError) {
             onAdError(adError);
@@ -240,8 +274,12 @@ export default function Watch() {
       const adsRequest = new window.google.ima.AdsRequest();
       adsRequest.adTagUrl = 'https://s.magsrv.com/v1/vast.php?idz=5998008';
       
-      adsRequest.linearAdSlotWidth = videoElement.clientWidth;
-      adsRequest.linearAdSlotHeight = videoElement.clientHeight;
+      const width = videoElement.clientWidth || adContainerElement.clientWidth || 640;
+      const height = videoElement.clientHeight || adContainerElement.clientHeight || 360;
+      adsRequest.linearAdSlotWidth = width;
+      adsRequest.linearAdSlotHeight = height;
+      adsRequest.nonLinearAdSlotWidth = width;
+      adsRequest.nonLinearAdSlotHeight = height;
 
       try {
         adsLoader.requestAds(adsRequest);
@@ -375,23 +413,58 @@ export default function Watch() {
     // Handle ad playback if it hasn't finished yet
     if (!adFinished && window.google && window.google.ima && imaLoaded === true) {
       if (!adInitializedRef.current && adDisplayContainerRef.current) {
-        adDisplayContainerRef.current.initialize();
+        try {
+          adDisplayContainerRef.current.initialize();
+        } catch (e) {
+          console.warn("adDisplayContainer initialize error:", e);
+        }
         adInitializedRef.current = true;
       }
       if (!playAdRequestedRef.current) {
         playAdRequestedRef.current = true;
+        const videoElement = videoRef.current;
+        const adContainerElement = adContainerRef.current;
+
+        if (adContainerElement) {
+          adContainerElement.style.opacity = '1';
+          adContainerElement.style.zIndex = '50';
+          adContainerElement.style.pointerEvents = 'auto';
+          adContainerElement.style.backgroundColor = 'black';
+        }
+
         if (adsManagerRef.current) {
           try {
-            adsManagerRef.current.init(videoRef.current.clientWidth, videoRef.current.clientHeight, window.google.ima.ViewMode.NORMAL);
+            const width = videoElement.clientWidth || adContainerElement?.clientWidth || 640;
+            const height = videoElement.clientHeight || adContainerElement?.clientHeight || 360;
+            adsManagerRef.current.init(width, height, window.google.ima.ViewMode.NORMAL);
             adsManagerRef.current.start();
           } catch (adError) {
             console.error("Ad start error", adError);
+            if (adContainerElement) {
+              adContainerElement.style.opacity = '0';
+              adContainerElement.style.zIndex = '0';
+              adContainerElement.style.pointerEvents = 'none';
+            }
             setAdFinished(true);
-            videoRef.current.play().catch(() => {});
+            videoElement.play().catch(() => {});
           }
+        } else {
+          // Timeout fallback in case ad request takes longer or hangs
+          setTimeout(() => {
+            if (!adsManagerRef.current && !adFinished) {
+              console.warn("Ad load timed out, starting main content...");
+              if (adContainerElement) {
+                adContainerElement.style.opacity = '0';
+                adContainerElement.style.zIndex = '0';
+                adContainerElement.style.pointerEvents = 'none';
+              }
+              setAdFinished(true);
+              videoElement.play().catch(() => {});
+            }
+          }, 4000);
         }
       }
-      return; // Ad playback is handling this, return so we don't play main video yet
+      return; // Ad playback is handling this
     }
 
     if (isPlaying) {
