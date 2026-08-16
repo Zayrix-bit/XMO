@@ -7,8 +7,6 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install
 
-# Install Playwright and its OS dependencies
-RUN npx playwright install --with-deps chromium
 
 # Bundle app source
 COPY . .

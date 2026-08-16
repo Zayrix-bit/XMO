@@ -7,6 +7,7 @@ const { Readable } = require('stream');
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1); // Essential for Hugging Face Spaces reverse proxy
 app.use(cors());
 
 // Cache setup
@@ -753,7 +754,7 @@ if (cluster.isPrimary && numCPUs > 1) {
         cluster.fork();
     });
 } else {
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
         console.log(`Worker ${process.pid} is running on port ${PORT}`);
         prewarmCache(); // Pre-fetch data on start
     });
