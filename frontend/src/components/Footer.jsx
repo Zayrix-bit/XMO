@@ -1,16 +1,16 @@
-import { Flame } from 'lucide-react';
+
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useCategories } from '../context/CategoriesContext';
 
 export default function Footer() {
   const { categories } = useCategories();
-  
+
   const handleLinkClick = (e, linkText) => {
     e.preventDefault();
     alert(`${linkText} is coming soon!`);
   };
-  
+
   const groupedCategories = useMemo(() => {
     const grouped = {};
     categories.forEach(cat => {
@@ -42,7 +42,7 @@ export default function Footer() {
                   <ul className="space-y-1.5">
                     {groupedCategories[letter].slice(0, 5).map((cat, i) => (
                       <li key={i}>
-                        <Link 
+                        <Link
                           to={`/?tab=category&slug=${cat.slug}`}
                           className="text-xs text-gray-500 hover:text-gray-300 transition-colors block"
                         >
@@ -52,7 +52,7 @@ export default function Footer() {
                     ))}
                     {groupedCategories[letter].length > 5 && (
                       <li>
-                        <Link 
+                        <Link
                           to="/?tab=categories"
                           className="text-xs text-[#ff2a5f] font-medium hover:text-[#ff4a75] transition-colors"
                         >
@@ -67,34 +67,34 @@ export default function Footer() {
           </div>
         </div>
       )}
-      
+
       <div className="max-w-[1600px] mx-auto px-6 py-12">
         {/* Top Grid of Columns */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-10 pb-10 border-b border-white/[0.06]">
           {/* Column 1: Brand & Info */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-[#ff2a5f] flex items-center justify-center">
-                <Flame className="w-4 h-4 text-white" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#ff2a5f] to-[#e01649] flex items-center justify-center shadow-lg shadow-[#ff2a5f]/20">
+                <span className="text-white font-black text-base tracking-tighter">N</span>
               </div>
-              <span className="text-xl font-bold tracking-tight">
-            HOT<span className="text-[#ff2a5f]">STER</span>
-          </span>
+              <span className="text-xl font-black tracking-tight text-white">
+                N<span className="text-[#ff2a5f]">PORNO</span>
+              </span>
             </div>
             <ul className="space-y-2 text-sm text-gray-500">
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Press")}
               >Press</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Blog")}
               >Blog</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Creator's Blog")}
               >Creator's Blog</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Advertising")}
               >Advertising</li>
@@ -105,22 +105,22 @@ export default function Footer() {
           <div className="space-y-4">
             <h4 className="text-sm font-semibold text-white">Help</h4>
             <ul className="space-y-2 text-sm text-gray-500">
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "FAQ")}
               >FAQ</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Contact us")}
               >Contact us</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Content Removal")}
               >Content Removal</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
-                onClick={(e) => handleLinkClick(e, "Improve NightHub")}
-              >Improve NightHub</li>
+                onClick={(e) => handleLinkClick(e, "Improve nporno")}
+              >Improve nporno</li>
             </ul>
           </div>
 
@@ -128,23 +128,23 @@ export default function Footer() {
           <div className="space-y-4">
             <h4 className="text-sm font-semibold text-white">Legal</h4>
             <ul className="space-y-2 text-sm text-gray-500">
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Terms of use")}
               >Terms of use</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Privacy policy")}
               >Privacy policy</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Cookies policy")}
               >Cookies policy</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "DMCA/Copyright")}
               >DMCA/Copyright</li>
-              <li 
+              <li
                 className="hover:text-white cursor-pointer transition-colors"
                 onClick={(e) => handleLinkClick(e, "Parental Controls")}
               >Parental Controls</li>
@@ -156,15 +156,15 @@ export default function Footer() {
             <div>
               <h4 className="text-sm font-semibold text-white mb-4">Start making money</h4>
               <ul className="space-y-2 text-sm text-gray-500">
-                <li 
+                <li
                   className="hover:text-white cursor-pointer transition-colors"
                   onClick={(e) => handleLinkClick(e, "Camgirls Wanted")}
                 >Camgirls Wanted</li>
-                <li 
+                <li
                   className="hover:text-white cursor-pointer transition-colors"
                   onClick={(e) => handleLinkClick(e, "Creator Contest")}
                 >Creator Contest</li>
-                <li 
+                <li
                   className="hover:text-white cursor-pointer transition-colors"
                   onClick={(e) => handleLinkClick(e, "Content Creators Program")}
                 >Content Creators Program</li>
@@ -176,9 +176,9 @@ export default function Footer() {
         {/* Bottom copyright segment */}
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6 pt-10">
           <div className="flex flex-col sm:flex-row items-center gap-4 text-xs text-gray-500">
-            <span>&copy; 2026 HOTSTER.com</span>
+            <span>&copy; 2026 nporno.online</span>
           </div>
-          
+
           <div className="flex flex-col md:flex-row items-center gap-4">
             <Link
               to="/disclaimer"

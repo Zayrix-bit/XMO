@@ -45,12 +45,12 @@ export default function Navbar() {
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 h-full flex items-center justify-between gap-4 sm:gap-8">
         
         {/* Logo */}
-        <button onClick={goHome} className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded bg-[#ff2a5f] flex items-center justify-center shadow-sm">
-            <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+        <button onClick={goHome} className="flex items-center gap-2 sm:gap-2.5 shrink-0 focus:outline-none group">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-[#ff2a5f] to-[#e01649] flex items-center justify-center shadow-lg shadow-[#ff2a5f]/20 group-hover:scale-105 transition-transform">
+            <span className="text-white font-black text-base sm:text-lg tracking-tighter">N</span>
           </div>
-          <span className="text-lg sm:text-xl font-bold tracking-tight text-white hidden sm:block">
-            HOT<span className="text-[#ff2a5f]">STER</span>
+          <span className="text-lg sm:text-xl font-black tracking-tight text-white">
+            N<span className="text-[#ff2a5f]">PORNO</span>
           </span>
         </button>
 

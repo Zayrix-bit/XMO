@@ -16,18 +16,18 @@ function App() {
   return (
     <BrowserRouter>
       <Helmet>
-        <title>Hotster - Video Streaming Platform</title>
-        <meta name="description" content="Hotster is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
-        <meta name="keywords" content="video, streaming, hotster, movies, shows" />
+        <title>nporno.online - Free HD Video Streaming Platform</title>
+        <meta name="description" content="nporno.online is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos in HD." />
+        <meta name="keywords" content="video, streaming, nporno, nporno.online, free hd videos" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta charSet="UTF-8" />
         <meta property="og:type" content="website" />
-        <meta property="og:title" content="Hotster - Video Streaming Platform" />
-        <meta property="og:description" content="Hotster is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
-        <meta property="og:site_name" content="Hotster" />
+        <meta property="og:title" content="nporno.online - Free HD Video Streaming Platform" />
+        <meta property="og:description" content="nporno.online is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos in HD." />
+        <meta property="og:site_name" content="nporno.online" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Hotster - Video Streaming Platform" />
-        <meta name="twitter:description" content="Hotster is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos." />
+        <meta name="twitter:title" content="nporno.online - Free HD Video Streaming Platform" />
+        <meta name="twitter:description" content="nporno.online is a modern video streaming platform. Browse trending videos, search for content, and watch your favorite videos in HD." />
       </Helmet>
       <div className="min-h-screen bg-[#0f0f13] text-white flex flex-col font-sans">
         {/* Only show AgeVerification if NOT verified and done checking */}

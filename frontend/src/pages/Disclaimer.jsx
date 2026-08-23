@@ -11,8 +11,8 @@ export default function Disclaimer() {
   return (
     <div className="pt-24 pb-28 px-6 max-w-[1600px] mx-auto w-full">
       <Helmet>
-        <title>Disclaimer - Hotster</title>
-        <meta name="description" content="Legal disclaimer for Hotster video platform." />
+        <title>Disclaimer - nporno.online</title>
+        <meta name="description" content="Legal disclaimer for nporno.online video platform." />
         <meta name="robots" content="noindex, nofollow" />
       </Helmet>
 
@@ -30,15 +30,15 @@ export default function Disclaimer() {
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">1. Third-Party Content</h2>
             <p>
-              All videos, images, and other content displayed on this website are provided by and hosted on third-party platforms, including but not limited to xHamster. 
-              Nighthub does not host, store, or upload any of the content shown on this website.
+              All videos, images, and other content displayed on this website are provided by and hosted on third-party platforms. 
+              nporno.online does not host, store, or upload any of the content shown on this website.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-white mb-3">2. No Affiliation</h2>
             <p>
-              Nighthub is not affiliated, associated, authorized, endorsed by, or in any way officially connected with xHamster, or any of its subsidiaries or affiliates. 
+              nporno.online is not affiliated, associated, authorized, endorsed by, or in any way officially connected with third-party sites, or any of their subsidiaries or affiliates. 
               All product and company names are the registered trademarks of their original owners.
             </p>
           </section>
@@ -47,7 +47,7 @@ export default function Disclaimer() {
             <h2 className="text-lg font-semibold text-white mb-3">3. Content Responsibility</h2>
             <p>
               The responsibility for all content available through this website lies solely with the original content creators and the third-party hosting platforms. 
-              Nighthub is a mere aggregator and does not exercise any editorial control over the content.
+              nporno.online is a mere aggregator and does not exercise any editorial control over the content.
             </p>
           </section>
 
@@ -62,7 +62,7 @@ export default function Disclaimer() {
             <h2 className="text-lg font-semibold text-white mb-3">5. Copyright Infringement</h2>
             <p>
               If you believe that any content on this website infringes your copyright, please contact the respective third-party hosting platform directly. 
-              Nighthub will promptly remove any links to infringing content upon proper notification from the copyright holder.
+              nporno.online will promptly remove any links to infringing content upon proper notification from the copyright holder.
             </p>
           </section>
         </div>

@@ -5,6 +5,7 @@ import api from '../services/api';
 import { useCategories } from '../context/CategoriesContext';
 import { Play, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import HoverPreview from '../components/HoverPreview';
+import RecommendationAd from '../components/RecommendationAd';
 
 function SkeletonCard() {
   return (
@@ -94,38 +95,38 @@ export default function Home() {
 
   const pageTitle = () => {
     if (!searchParams.get('tab') || tab === 'trending') {
-      return 'Trending Videos | Watch Free HD Videos - Hotster';
+      return 'Trending Videos | Watch Free HD Videos - nporno.online';
     } else if (tab === 'new') {
-      return 'New Releases | Latest HD Videos - Hotster';
+      return 'New Releases | Latest HD Videos - nporno.online';
     } else if (tab === 'categories') {
-      return 'Browse All Categories | Find Your Favorite Content - Hotster';
+      return 'Browse All Categories | Find Your Favorite Content - nporno.online';
     } else if (tab === 'search' && query) {
-      return `Watch "${query}" Videos | Free HD Streaming - Hotster`;
+      return `Watch "${query}" Videos | Free HD Streaming - nporno.online`;
     } else if (tab === 'category' && searchParams.get('slug')) {
       const categoryName = searchParams.get('slug').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      return `${categoryName} Videos | Watch Free HD Content - Hotster`;
+      return `${categoryName} Videos | Watch Free HD Content - nporno.online`;
     }
-    return 'Hotster | Watch Free HD Videos Online';
+    return 'nporno.online | Watch Free HD Videos Online';
   };
 
   const pageDescription = () => {
     if (!searchParams.get('tab') || tab === 'trending') {
-      return 'Watch trending HD videos for free on Hotster. Browse the most popular content across all categories and enjoy seamless streaming.';
+      return 'Watch trending HD videos for free on nporno.online. Browse the most popular content across all categories and enjoy seamless streaming.';
     } else if (tab === 'new') {
-      return 'Discover the latest HD video releases on Hotster. Stay updated with fresh content and watch new videos as they arrive.';
+      return 'Discover the latest HD video releases on nporno.online. Stay updated with fresh content and watch new videos as they arrive.';
     } else if (tab === 'categories') {
-      return 'Explore hundreds of video categories on Hotster. From trending to niche content, find exactly what you want to watch.';
+      return 'Explore hundreds of video categories on nporno.online. From trending to niche content, find exactly what you want to watch.';
     } else if (tab === 'search' && query) {
-      return `Find and watch HD videos matching "${query}" on Hotster. Free streaming with high-quality playback.`;
+      return `Find and watch HD videos matching "${query}" on nporno.online. Free streaming with high-quality playback.`;
     } else if (tab === 'category' && searchParams.get('slug')) {
       const categoryName = searchParams.get('slug').split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      return `Watch the best ${categoryName} videos in HD on Hotster. Free streaming with no interruptions.`;
+      return `Watch the best ${categoryName} videos in HD on nporno.online. Free streaming with no interruptions.`;
     }
-    return 'Hotster is your go-to platform for free HD video streaming. Watch trending content, explore categories, and enjoy a seamless viewing experience.';
+    return 'nporno.online is your go-to platform for free HD video streaming. Watch trending content, explore categories, and enjoy a seamless viewing experience.';
   };
 
   const pageKeywords = () => {
-    const base = 'free videos, HD streaming, online videos, watch videos, video platform';
+    const base = 'free videos, HD streaming, online videos, watch videos, video platform, nporno, nporno.online';
     if (tab === 'search' && query) {
       return `${query}, ${base}`;
     } else if (tab === 'category' && searchParams.get('slug')) {
@@ -147,7 +148,7 @@ export default function Home() {
         <meta property="og:description" content={pageDescription()} />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={window.location.href} />
-        <meta property="og:site_name" content="Hotster" />
+        <meta property="og:site_name" content="nporno.online" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={pageTitle()} />
         <meta name="twitter:description" content={pageDescription()} />
@@ -336,6 +337,9 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {/* Native Recommendation Widget */}
+          {!loading && videos.length > 0 && <RecommendationAd />}
 
           {/* Pagination */}
           {!loading && videos.length > 0 && (

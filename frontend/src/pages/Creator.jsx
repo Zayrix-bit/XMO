@@ -82,22 +82,22 @@ export default function Creator() {
   return (
     <>
       <Helmet>
-        <title>{creatorData ? `${creatorData.name || slug} | Watch Free Videos - Hotster` : 'Creator - Hotster'}</title>
-        <meta name="description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Hotster. Free streaming with no interruptions.` : 'Browse creators on Hotster.'} />
-        <meta name="keywords" content={creatorData ? `${creatorData.name || slug}, free videos, creator, HD streaming` : 'creators, free videos, watch online'} />
+        <title>{creatorData ? `${creatorData.name || slug} | Watch Free Videos - nporno.online` : 'Creator - nporno.online'}</title>
+        <meta name="description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on nporno.online. Free streaming with no interruptions.` : 'Browse creators on nporno.online.'} />
+        <meta name="keywords" content={creatorData ? `${creatorData.name || slug}, free videos, creator, HD streaming, nporno, nporno.online` : 'creators, free videos, watch online, nporno'} />
         <meta name="robots" content="index, follow" />
         <link rel="canonical" href={window.location.href} />
-        <meta property="og:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - Hotster` : 'Creator - Hotster'} />
-        <meta property="og:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Hotster. Free streaming with no interruptions.` : 'Browse creators on Hotster.'} />
+        <meta property="og:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - nporno.online` : 'Creator - nporno.online'} />
+        <meta property="og:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on nporno.online. Free streaming with no interruptions.` : 'Browse creators on nporno.online.'} />
         <meta property="og:type" content="profile" />
         <meta property="og:url" content={window.location.href} />
-        <meta property="og:site_name" content="Hotster" />
+        <meta property="og:site_name" content="nporno.online" />
         {creatorData?.avatar && (
           <meta property="og:image" content={creatorData.avatar} />
         )}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - Hotster` : 'Creator - Hotster'} />
-        <meta name="twitter:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on Hotster. Free streaming with no interruptions.` : 'Browse creators on Hotster.'} />
+        <meta name="twitter:title" content={creatorData ? `${creatorData.name || slug} | Watch Free Videos - nporno.online` : 'Creator - nporno.online'} />
+        <meta name="twitter:description" content={creatorData ? `Watch all videos by ${creatorData.name || slug} in HD quality on nporno.online. Free streaming with no interruptions.` : 'Browse creators on nporno.online.'} />
         {creatorData?.avatar && (
           <meta name="twitter:image" content={creatorData.avatar} />
         )}
