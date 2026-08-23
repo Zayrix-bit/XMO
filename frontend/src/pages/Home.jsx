@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import api from '../services/api';
@@ -296,35 +296,50 @@ export default function Home() {
             ) : videos.length > 0 ? (
               videos.map((video, index) => {
                 const videoId = video.id || video.link.split('-').pop().replace('/', '');
+                const showInFeedAd = (index === 7 || index === 17) && index < videos.length - 1;
                 return (
-                  <Link to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} key={index} className="group flex flex-col gap-2.5">
-                    <div className="relative aspect-video rounded-lg overflow-hidden bg-[#121218]">
-                      {video.image ? (
-                        <HoverPreview video={video} />
-                      ) : (
-                        <div className="w-full h-full bg-[#181822] flex items-center justify-center">
-                          <Play className="w-8 h-8 text-gray-600" />
-                        </div>
-                      )}
+                  <Fragment key={index}>
+                    <Link to={`/watch/${videoId}?url=${encodeURIComponent(video.link)}`} className="group flex flex-col gap-2.5">
+                      <div className="relative aspect-video rounded-lg overflow-hidden bg-[#121218]">
+                        {video.image ? (
+                          <HoverPreview video={video} />
+                        ) : (
+                          <div className="w-full h-full bg-[#181822] flex items-center justify-center">
+                            <Play className="w-8 h-8 text-gray-600" />
+                          </div>
+                        )}
 
-                      {video.duration && (
-                        <div className="absolute bottom-2 right-2 bg-black px-2 py-0.5 rounded text-xs font-semibold text-white">
-                          {video.duration}
+                        {video.duration && (
+                          <div className="absolute bottom-2 right-2 bg-black px-2 py-0.5 rounded text-xs font-semibold text-white">
+                            {video.duration}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm md:text-base font-medium text-gray-300 group-hover:text-white line-clamp-2 transition-colors leading-snug">
+                          {video.title}
+                        </h3>
+                        {video.views && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Eye className="w-3.5 h-3.5 text-gray-500" />
+                            <span className="text-xs text-gray-500">{video.views}</span>
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+
+                    {showInFeedAd && (
+                      <div className="col-span-full my-4 p-3 sm:p-4 bg-[#121218] border border-[#2a2a35] rounded-2xl overflow-hidden shadow-lg">
+                        <div className="flex items-center justify-between mb-3 px-1">
+                          <span className="text-xs font-bold uppercase tracking-wider text-[#ff2a5f] bg-[#ff2a5f]/10 px-2.5 py-1 rounded-full border border-[#ff2a5f]/20">
+                            Recommended For You
+                          </span>
+                          <span className="text-[11px] text-gray-500 font-medium">Sponsored</span>
                         </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-sm md:text-base font-medium text-gray-300 group-hover:text-white line-clamp-2 transition-colors leading-snug">
-                        {video.title}
-                      </h3>
-                      {video.views && (
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <Eye className="w-3.5 h-3.5 text-gray-500" />
-                          <span className="text-xs text-gray-500">{video.views}</span>
-                        </div>
-                      )}
-                    </div>
-                  </Link>
+                        <RecommendationAd className="my-0" />
+                      </div>
+                    )}
+                  </Fragment>
                 );
               })
             ) : (
@@ -337,9 +352,6 @@ export default function Home() {
               </div>
             )}
           </div>
-
-          {/* Native Recommendation Widget */}
-          {!loading && videos.length > 0 && <RecommendationAd />}
 
           {/* Pagination */}
           {!loading && videos.length > 0 && (
