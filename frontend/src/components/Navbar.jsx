@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Search, Flame, X, Menu } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Navbar() {
   const [search, setSearch] = useState('');
@@ -8,6 +8,16 @@ export default function Navbar() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (mobileMenu && !e.target.closest('nav')) {
+        setMobileMenu(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [mobileMenu]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -85,24 +95,21 @@ export default function Navbar() {
             </button>
           </div>
 
-
-
-          {/* Mobile Menu Toggle (Visible on tablets and phones) */}
+          {/* Menu Toggle (Visible for all users including desktop) */}
           <button 
             onClick={() => { setMobileMenu(!mobileMenu); }} 
-            className="md:hidden text-gray-400 hover:text-white p-2 rounded hover:bg-[#1a1a24]"
+            className="text-gray-400 hover:text-white p-2 rounded hover:bg-[#1a1a24] transition-colors"
+            aria-label="Toggle navigation menu"
           >
             {mobileMenu ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
-
-
-      {/* Mobile Menu Dropdown */}
+      {/* Menu Dropdown */}
       {mobileMenu && (
-        <div className="md:hidden absolute top-[64px] left-0 w-full bg-[#121218] border-b border-[#2a2a35] px-4 py-2 shadow-lg">
-          <div className="flex flex-col gap-1">
+        <div className="absolute top-[64px] left-0 w-full bg-[#121218] border-b border-[#2a2a35] px-4 py-2 shadow-lg z-50">
+          <div className="max-w-[1600px] mx-auto flex flex-col gap-1">
             <button onClick={goHome} className={`text-left px-4 py-3 rounded transition-colors ${!activeTab ? 'bg-[#2a2a35] text-white font-medium' : 'text-gray-400 hover:bg-[#1a1a24]'}`}>
               Home
             </button>

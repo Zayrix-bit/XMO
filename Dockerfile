@@ -3,6 +3,9 @@ FROM node:20
 # Create app directory
 WORKDIR /usr/src/app
 
+# Set port to 7860 for Hugging Face Spaces
+ENV PORT=7860
+
 # Install app dependencies
 COPY package*.json ./
 RUN npm install

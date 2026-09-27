@@ -1,10 +1,32 @@
+// Prevent container crashes on Hugging Face from unhandled rejections or socket aborts
+process.on('uncaughtException', (err) => {
+    console.error('[CRASH PREVENTED] Uncaught Exception:', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('[CRASH PREVENTED] Unhandled Rejection:', reason?.message || reason);
+});
+
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const cluster = require('cluster');
-const { Readable } = require('stream');
+const { Readable, pipeline } = require('stream');
 
 dotenv.config();
+
+// Configure Outbound Proxy (HTTP/HTTPS/SOCKS) if defined in env (e.g. Hugging Face Secrets)
+let proxyActive = false;
+const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL;
+if (proxyUrl) {
+    try {
+        const { ProxyAgent, setGlobalDispatcher } = require('undici');
+        setGlobalDispatcher(new ProxyAgent(proxyUrl));
+        proxyActive = true;
+        console.log(`[PROXY] Active: Routing all outbound scraper traffic through proxy`);
+    } catch (e) {
+        console.warn(`[PROXY] Failed to initialize ProxyAgent:`, e.message);
+    }
+}
 
 const app = express();
 app.set('trust proxy', 1); // Essential for Hugging Face Spaces reverse proxy
@@ -220,7 +242,7 @@ async function fetchHtmlAxios(url, timeoutMs = 4500) {
         const domain = new URL(url).hostname;
         const headers = getHeaders(domain);
         
-        // Use native fetch with timeout signal to prevent hanging on ISP-blocked domains
+        // Use native fetch with timeout signal
         const res = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(timeoutMs) });
         
         // Capture and update cookies from response to maintain session state
@@ -338,6 +360,25 @@ function cacheResponse(ttlSeconds) {
 // Routes
 app.get('/', (req, res) => {
     res.json({ status: "success", message: "xHamster Scraper API (Node.js) is running!" });
+});
+
+app.get('/api/health', (req, res) => {
+    res.json({ status: "healthy", uptime: process.uptime(), timestamp: Date.now() });
+});
+
+app.get('/api/ip', async (req, res) => {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(4000) });
+        const data = await response.json();
+        res.json({
+            status: "success",
+            outbound_ip: data.ip,
+            proxy_active: proxyActive,
+            proxy_configured: !!(process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL)
+        });
+    } catch (e) {
+        res.status(500).json({ status: "error", message: e.message, proxy_active: proxyActive });
+    }
 });
 
 app.get('/api/clear-cache', (req, res) => {
@@ -665,7 +706,15 @@ app.get('/api/proxy', async (req, res) => {
 
         res.status(response.status);
         if (response.body) {
-            Readable.fromWeb(response.body).pipe(res);
+            const webStream = Readable.fromWeb(response.body);
+            req.on('close', () => {
+                try { webStream.destroy(); } catch (err) {}
+            });
+            pipeline(webStream, res, (err) => {
+                if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE' && err.code !== 'ECONNRESET') {
+                    // Suppress normal client aborts to avoid log noise
+                }
+            });
         } else {
             res.end();
         }
@@ -761,7 +810,8 @@ app.get('/api/hls-proxy', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 7860;
+// Hugging Face Spaces requires app to run on port 7860 (README app_port: 7860)
+const PORT = process.env.SPACE_ID ? 7860 : (process.env.PORT || 7860);
 const numCPUs = process.env.WORKERS ? parseInt(process.env.WORKERS) : 1; // Default to 1 for lightweight memory footprint
 
 async function prewarmCache() {
