@@ -22,8 +22,7 @@ A high-performance, resilient video streaming platform and content scraper engin
 - **⚡ Concurrent Domain Racing**: Concurrently races mirror domains (`xhamster5.com`, `xhamster18.com`, `xhamster46.desi`) to respond with the lowest latency.
 - **🎬 Adaptive HLS & Direct MP4 Streaming**: Native HLS proxy rewriting with multi-resolution bitrate switching (`1080p`, `720p`, `480p`, `240p`, `144p`).
 - **📱 Fully Responsive UI**: Sleek dark-mode interface optimized for mobile viewports, tablets, and desktop navigation.
-- **📊 Real-Time Diagnostic Endpoints**: Built-in `/api/ip` and `/api/health` endpoints for monitoring outbound proxy IPs and pool health.
-- **📢 Advertising & Monetization**: Integrated VAST/IMA video preroll advertising with graceful AdBlocker fallbacks and recommendation banner slots.
+- **🚫 100% Ad-Free Experience**: Zero third-party ad scripts, zero intrusive popups, and instant video playback without preroll delays.
 
 ---
 
