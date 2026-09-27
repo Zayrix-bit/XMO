@@ -6,8 +6,6 @@ import api from '../services/api';
 import Hls from 'hls.js';
 import { ArrowLeft, Heart, Share2, AlertCircle, Check, Eye, User, Download, Clock, ChevronDown } from 'lucide-react';
 import HoverPreview from '../components/HoverPreview';
-import RecommendationAd from '../components/RecommendationAd';
-import MobileBannerAd from '../components/MobileBannerAd';
 
 function SkeletonVideo() {
   return (
@@ -28,16 +26,7 @@ export default function Watch() {
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
-  // VAST Ad States
-  const [imaLoaded, setImaLoaded] = useState(false);
-  const [isAdPlaying, setIsAdPlaying] = useState(false);
-  const [adFinished, setAdFinished] = useState(false);
-  const adDisplayContainerRef = useRef(null);
-  const adsLoaderRef = useRef(null);
-  const adsManagerRef = useRef(null);
-  const adContainerRef = useRef(null);
-  const adInitializedRef = useRef(false);
-  const playAdRequestedRef = useRef(true);
+
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -137,191 +126,7 @@ export default function Watch() {
     if (id) fetchVideo();
   }, [id, originalUrl]);
 
-  // Reset Ad state on new video load
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAdFinished(false);
-    setIsAdPlaying(false);
-    adInitializedRef.current = false;
-    playAdRequestedRef.current = true;
-    if (adsManagerRef.current) {
-      adsManagerRef.current.destroy();
-      adsManagerRef.current = null;
-    }
-    if (adsLoaderRef.current) {
-      adsLoaderRef.current.destroy();
-      adsLoaderRef.current = null;
-    }
-  }, [id]);
 
-  // Wait for IMA SDK to load
-  useEffect(() => {
-    if (window.google && window.google.ima) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (imaLoaded !== true) setImaLoaded(true);
-      return;
-    }
-    const interval = setInterval(() => {
-      if (window.google && window.google.ima) {
-        setImaLoaded(true);
-        clearInterval(interval);
-      }
-    }, 200);
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-      if (imaLoaded !== true) setImaLoaded('failed');
-    }, 3000);
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, [imaLoaded]);
-
-  // IMA SDK Ad Initialization
-  useEffect(() => {
-    if (!videoData || !videoRef.current || !adContainerRef.current) return;
-    if (imaLoaded === false) return; // Wait for IMA to load or fail
-    
-    // Only initialize ads once per video load
-    if (window.google && window.google.ima && !adFinished && !isAdPlaying && !adsLoaderRef.current) {
-      const videoElement = videoRef.current;
-      const adContainerElement = adContainerRef.current;
-
-      const adDisplayContainer = new window.google.ima.AdDisplayContainer(adContainerElement, videoElement);
-      adDisplayContainerRef.current = adDisplayContainer;
-
-      const adsLoader = new window.google.ima.AdsLoader(adDisplayContainer);
-      adsLoaderRef.current = adsLoader;
-
-      // Configure IMA SDK Settings for VAST Wrapper Redirects (ExoClick uses Wrapper redirects)
-      try {
-        const imaSettings = adsLoader.getSettings();
-        imaSettings.setNumRedirects(10);
-        imaSettings.setAutoPlayAdBreaks(false);
-      } catch (e) {
-        console.warn("IMA settings error:", e);
-      }
-
-      const hideAdContainer = () => {
-        if (adContainerElement) {
-          adContainerElement.style.opacity = '0';
-          adContainerElement.style.zIndex = '0';
-          adContainerElement.style.pointerEvents = 'none';
-          adContainerElement.style.backgroundColor = 'transparent';
-        }
-      };
-
-      const showAdContainer = () => {
-        if (adContainerElement) {
-          adContainerElement.style.opacity = '1';
-          adContainerElement.style.zIndex = '50';
-          adContainerElement.style.pointerEvents = 'auto';
-          adContainerElement.style.backgroundColor = 'black';
-        }
-      };
-
-      const onAdError = (adErrorEvent) => {
-        console.warn("IMA Ad Error / No Fill:", adErrorEvent);
-        hideAdContainer();
-        setIsAdPlaying(false);
-        setAdFinished(true);
-        if (adsManagerRef.current) {
-          try { adsManagerRef.current.destroy(); } catch (err) { console.debug("IMA destroy notice:", err); }
-        }
-        if (playAdRequestedRef.current && videoElement) {
-          videoElement.play().catch(() => {});
-        }
-      };
-
-      const onAdsManagerLoaded = (adsManagerLoadedEvent) => {
-        const adsManager = adsManagerLoadedEvent.getAdsManager(videoElement);
-        adsManagerRef.current = adsManager;
-
-        adsManager.addEventListener(window.google.ima.AdErrorEvent.Type.AD_ERROR, onAdError);
-        adsManager.addEventListener(window.google.ima.AdEvent.Type.CONTENT_PAUSE_REQUEST, () => {
-          showAdContainer();
-          setIsAdPlaying(true);
-          videoElement.pause();
-        });
-        adsManager.addEventListener(window.google.ima.AdEvent.Type.CONTENT_RESUME_REQUEST, () => {
-          hideAdContainer();
-          setIsAdPlaying(false);
-          setAdFinished(true);
-          videoElement.play().catch(() => {});
-        });
-        adsManager.addEventListener(window.google.ima.AdEvent.Type.ALL_ADS_COMPLETED, () => {
-          hideAdContainer();
-          setIsAdPlaying(false);
-          setAdFinished(true);
-          videoElement.play().catch(() => {});
-        });
-
-        if (playAdRequestedRef.current) {
-          try {
-            if (!adInitializedRef.current && adDisplayContainerRef.current) {
-              try { adDisplayContainerRef.current.initialize(); } catch (err) { console.debug("adDisplayContainer init notice:", err); }
-              adInitializedRef.current = true;
-            }
-            showAdContainer();
-            const width = videoElement.clientWidth || adContainerElement.clientWidth || 640;
-            const height = videoElement.clientHeight || adContainerElement.clientHeight || 360;
-            adsManager.init(width, height, window.google.ima.ViewMode.NORMAL);
-            adsManager.start();
-          } catch (adError) {
-            onAdError(adError);
-          }
-        }
-      };
-
-      adsLoader.addEventListener(window.google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED, onAdsManagerLoaded, false);
-      adsLoader.addEventListener(window.google.ima.AdErrorEvent.Type.AD_ERROR, onAdError, false);
-
-      // ExoClick/TrafficJunky VAST URL
-      const adsRequest = new window.google.ima.AdsRequest();
-      adsRequest.adTagUrl = 'https://s.magsrv.com/v1/vast.php?idz=6009568';
-      
-      const width = videoElement.clientWidth || adContainerElement.clientWidth || 640;
-      const height = videoElement.clientHeight || adContainerElement.clientHeight || 360;
-      adsRequest.linearAdSlotWidth = width;
-      adsRequest.linearAdSlotHeight = height;
-      adsRequest.nonLinearAdSlotWidth = width;
-      adsRequest.nonLinearAdSlotHeight = height;
-
-      try {
-        adsLoader.requestAds(adsRequest);
-      } catch (e) {
-        onAdError(e);
-      }
-    } else if (imaLoaded === 'failed' && !adFinished) {
-      // AdBlocker detected or IMA SDK failed to load
-      console.log("AdBlocker detected or IMA failed, skipping ad...");
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAdFinished(true);
-      if (videoRef.current && playAdRequestedRef.current) {
-        videoRef.current.play().catch(() => {});
-      }
-    }
-  }, [videoData, adFinished, isAdPlaying, imaLoaded]);
-
-  // Clean up IMA SDK on unmount and handle resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (adsManagerRef.current && videoRef.current && isAdPlaying) {
-        adsManagerRef.current.resize(
-          videoRef.current.clientWidth,
-          videoRef.current.clientHeight,
-          window.google.ima.ViewMode.NORMAL
-        );
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (adsManagerRef.current) adsManagerRef.current.destroy();
-      if (adsLoaderRef.current) adsLoaderRef.current.destroy();
-    };
-  }, [isAdPlaying]);
 
   // Setup HLS.js or fallback to MP4
   useEffect(() => {
@@ -366,13 +171,11 @@ export default function Watch() {
         setCurrentQuality(-1);
         hls.currentLevel = -1;
         
-        if (adFinished && playAdRequestedRef.current) {
-          video.play().catch(() => {
-            video.muted = true;
-            setIsMuted(true);
-            video.play().catch(() => {});
-          });
-        }
+        video.play().catch(() => {
+          video.muted = true;
+          setIsMuted(true);
+          video.play().catch(() => {});
+        });
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
@@ -400,9 +203,11 @@ export default function Watch() {
     // Fallback: direct MP4
     else if (mp4Url) {
       video.src = mp4Url;
-      if (adFinished && playAdRequestedRef.current) {
+      video.play().catch(() => {
+        video.muted = true;
+        setIsMuted(true);
         video.play().catch(() => {});
-      }
+      });
       return () => {
         video.removeEventListener('ended', handleVideoEnd);
       };
@@ -410,73 +215,13 @@ export default function Watch() {
     return () => {
       video.removeEventListener('ended', handleVideoEnd);
     };
-  }, [videoData, relatedVideos, navigate, adFinished]);
+  }, [videoData, relatedVideos, navigate]);
 
   // Video Action Helper Functions
   const togglePlay = () => {
     setShowSettingsMenu(false);
     if (!videoRef.current) return;
     
-    // If ad is playing, do not toggle main video
-    if (isAdPlaying) return;
-
-    // Handle ad playback if it hasn't finished yet
-    if (!adFinished && window.google && window.google.ima && imaLoaded === true) {
-      if (!adInitializedRef.current && adDisplayContainerRef.current) {
-        try {
-          adDisplayContainerRef.current.initialize();
-        } catch (e) {
-          console.warn("adDisplayContainer initialize error:", e);
-        }
-        adInitializedRef.current = true;
-      }
-      if (!playAdRequestedRef.current) {
-        playAdRequestedRef.current = true;
-        const videoElement = videoRef.current;
-        const adContainerElement = adContainerRef.current;
-
-        if (adContainerElement) {
-          adContainerElement.style.opacity = '1';
-          adContainerElement.style.zIndex = '50';
-          adContainerElement.style.pointerEvents = 'auto';
-          adContainerElement.style.backgroundColor = 'black';
-        }
-
-        if (adsManagerRef.current) {
-          try {
-            const width = videoElement.clientWidth || adContainerElement?.clientWidth || 640;
-            const height = videoElement.clientHeight || adContainerElement?.clientHeight || 360;
-            adsManagerRef.current.init(width, height, window.google.ima.ViewMode.NORMAL);
-            adsManagerRef.current.start();
-          } catch (adError) {
-            console.error("Ad start error", adError);
-            if (adContainerElement) {
-              adContainerElement.style.opacity = '0';
-              adContainerElement.style.zIndex = '0';
-              adContainerElement.style.pointerEvents = 'none';
-            }
-            setAdFinished(true);
-            videoElement.play().catch(() => {});
-          }
-        } else {
-          // Timeout fallback in case ad request takes longer or hangs
-          setTimeout(() => {
-            if (!adsManagerRef.current && !adFinished) {
-              console.warn("Ad load timed out, starting main content...");
-              if (adContainerElement) {
-                adContainerElement.style.opacity = '0';
-                adContainerElement.style.zIndex = '0';
-                adContainerElement.style.pointerEvents = 'none';
-              }
-              setAdFinished(true);
-              videoElement.play().catch(() => {});
-            }
-          }, 4000);
-        }
-      }
-      return; // Ad playback is handling this
-    }
-
     if (isPlaying) {
       videoRef.current.pause();
     } else {
@@ -869,20 +614,12 @@ export default function Watch() {
                   poster={videoData.related?.[0]?.image || ''}
                 ></video>
 
-                {/* Ad Container overlay */}
-                <div 
-                  ref={adContainerRef} 
-                  id="ad-container" 
-                  className={`absolute top-0 left-0 w-full h-full ${isAdPlaying ? 'z-50 opacity-100 pointer-events-auto' : 'z-0 opacity-0 pointer-events-none'}`}
-                  style={{ backgroundColor: isAdPlaying ? 'black' : 'transparent' }}
-                ></div>
-
                 {/* Click area for play/pause toggle */}
-                <div id="click-area" className={`click-area ${isAdPlaying ? 'hidden' : ''}`} onClick={handleVideoClick} onDoubleClick={handleDoubleClick}></div>
+                <div id="click-area" className="click-area" onClick={handleVideoClick} onDoubleClick={handleDoubleClick}></div>
 
                 {/* Gradient overlays for controls visibility */}
-                <div id="gradient-top" className={`gradient gradient-top ${showControls && !isAdPlaying ? '' : 'hidden'}`}></div>
-                <div id="gradient-bottom" className={`gradient gradient-bottom ${showControls && !isAdPlaying ? '' : 'hidden'}`}></div>
+                <div id="gradient-top" className={`gradient gradient-top ${showControls ? '' : 'hidden'}`}></div>
+                <div id="gradient-bottom" className={`gradient gradient-bottom ${showControls ? '' : 'hidden'}`}></div>
 
                 {/* Loading Overlay */}
                 {isBuffering && (
@@ -914,12 +651,12 @@ export default function Watch() {
                 )}
                 
                 {/* Top bar with title */}
-                <div id="top-bar" className={`top-bar ${showControls && !isAdPlaying ? '' : 'hidden'}`}>
+                <div id="top-bar" className={`top-bar ${showControls ? '' : 'hidden'}`}>
                   <span id="video-title" className="video-title">{videoData.title}</span>
                 </div>
 
                 {/* Bottom Controls */}
-                <div id="controls" className={`controls ${showControls && !isAdPlaying ? '' : 'hidden'}`} onClick={(e) => e.stopPropagation()}>
+                <div id="controls" className={`controls ${showControls ? '' : 'hidden'}`} onClick={(e) => e.stopPropagation()}>
                   {/* Progress / Seek Bar */}
                   <div className="seek-container" id="seek-container"
                        onMouseDown={(e) => {
@@ -1271,12 +1008,6 @@ export default function Watch() {
 
             {/* Bottom Section: Creator Videos & Related Videos */}
             <div className="w-full space-y-8 border-t border-[#2a2a35] pt-6">
-
-              {/* Mobile 300x250 Banner Ad */}
-              <MobileBannerAd />
-
-              {/* Recommendation Native Ads */}
-              <RecommendationAd />
 
               {/* Related Videos */}
               {relatedVideos.length > 0 && (
