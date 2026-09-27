@@ -864,7 +864,6 @@ export default function Watch() {
                 <video 
                   ref={videoRef}
                   id="video" 
-                  crossOrigin="anonymous" 
                   playsInline 
                   preload="auto"
                   poster={videoData.related?.[0]?.image || ''}
