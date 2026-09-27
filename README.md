@@ -1,14 +1,3 @@
----
-title: XMO Scraper & Video Streaming Engine
-emoji: ⚡
-colorFrom: indigo
-colorTo: purple
-sdk: docker
-app_port: 7860
-pinned: false
-license: mit
----
-
 <div align="center">
 
 # ⚡ XMO Engine & Streaming Platform
@@ -183,6 +172,14 @@ npm run dev
 2. Push or upload `Dockerfile`, `package.json`, `package-lock.json`, and `server.js`.
 3. In **Settings -> Variables and secrets**, add your `HTTP_PROXY` secret with your proxy list.
 4. Hugging Face will automatically build and start the container on port `7860`.
+
+#### Hugging Face Space Settings
+| Configuration | Value |
+| :--- | :--- |
+| **Space SDK** | `Docker` |
+| **App Port** | `7860` |
+| **Base Theme** | Indigo to Purple |
+| **License** | MIT |
 
 ### Deploying Frontend to Cloudflare Pages
 1. Connect your repository (`Zayrix-bit/XMO`) to Cloudflare Pages.
