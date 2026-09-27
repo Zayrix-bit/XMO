@@ -22,55 +22,77 @@ const { Readable, pipeline } = require('stream');
 
 dotenv.config();
 
-// Configure Outbound Proxy (HTTP/HTTPS/SOCKS) if defined in env (e.g. Hugging Face Secrets)
+// Configure Outbound Proxy Pool (Single or Multiple Proxies)
 const { ProxyAgent, fetch: undiciFetch } = require('undici');
 
-let proxyAgent = null;
-let proxyActive = false;
+const proxyPool = [];
+let proxyIndex = 0;
 let proxyError = null;
-let proxyUrlUsed = null;
 
-let rawProxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL;
-if (!rawProxyUrl && (process.env.PROXY_HOST || process.env.PROXY_IP)) {
+// Collect raw proxy definitions (supports PROXIES, HTTP_PROXIES, HTTP_PROXY, PROXY_URL)
+let rawProxyInput = process.env.PROXIES || process.env.HTTP_PROXIES || process.env.HTTP_PROXY || process.env.PROXY_URL;
+if (!rawProxyInput && (process.env.PROXY_HOST || process.env.PROXY_IP)) {
     const host = process.env.PROXY_HOST || process.env.PROXY_IP;
     const port = process.env.PROXY_PORT || '80';
     const user = process.env.PROXY_USER || process.env.PROXY_USERNAME;
     const pass = process.env.PROXY_PASS || process.env.PROXY_PASSWORD;
-    if (user && pass) {
-        rawProxyUrl = `http://${user}:${pass}@${host}:${port}`;
-    } else {
-        rawProxyUrl = `http://${host}:${port}`;
-    }
+    rawProxyInput = user && pass ? `http://${user}:${pass}@${host}:${port}` : `http://${host}:${port}`;
 }
 
-if (rawProxyUrl) {
-    let formatted = rawProxyUrl.trim();
-    if (!formatted.startsWith('http://') && !formatted.startsWith('https://') && !formatted.startsWith('socks5://')) {
-        formatted = `http://${formatted}`;
-    }
-    try {
-        proxyAgent = new ProxyAgent(formatted);
-        proxyActive = true;
-        try {
-            const p = new URL(formatted);
-            if (p.password) p.password = '***';
-            proxyUrlUsed = p.toString();
-        } catch (_) {
-            proxyUrlUsed = 'configured';
+if (rawProxyInput) {
+    // Split by comma, semicolon or newline to support multiple proxies
+    const rawList = rawProxyInput.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    for (let item of rawList) {
+        if (!item.startsWith('http://') && !item.startsWith('https://') && !item.startsWith('socks5://')) {
+            item = `http://${item}`;
         }
-        console.log(`[PROXY] Active: Routing all scraper outbound requests through proxy (${proxyUrlUsed})`);
-    } catch (e) {
-        proxyError = e.message;
-        console.warn(`[PROXY] Failed to initialize ProxyAgent:`, e.message);
+        try {
+            const agent = new ProxyAgent(item);
+            let masked = item;
+            try {
+                const u = new URL(item);
+                if (u.password) u.password = '***';
+                masked = u.toString();
+            } catch (_) {}
+            proxyPool.push({ agent, url: item, masked });
+        } catch (e) {
+            proxyError = e.message;
+            console.warn(`[PROXY POOL] Failed to initialize proxy (${item}):`, e.message);
+        }
+    }
+    if (proxyPool.length > 0) {
+        console.log(`[PROXY POOL] Active with ${proxyPool.length} proxies in pool. Auto-rotation & failover enabled.`);
+        proxyPool.forEach((p, idx) => console.log(`  -> Proxy [${idx + 1}/${proxyPool.length}]: ${p.masked}`));
     }
 }
 
-// Scraper fetch helper: routes external scraper calls through proxy when available
-const scraperFetch = (url, options = {}) => {
-    if (proxyAgent) {
-        return undiciFetch(url, { ...options, dispatcher: proxyAgent });
+// Get next proxy in round-robin sequence
+function getNextProxy() {
+    if (proxyPool.length === 0) return null;
+    const p = proxyPool[proxyIndex % proxyPool.length];
+    proxyIndex++;
+    return p;
+}
+
+// Scraper fetch helper: routes external scraper calls through proxy pool with auto-failover
+const scraperFetch = async (url, options = {}) => {
+    if (proxyPool.length === 0) {
+        return fetch(url, options);
     }
-    return fetch(url, options);
+    const maxRetries = Math.min(proxyPool.length, 3);
+    let lastError = null;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const item = getNextProxy();
+        try {
+            return await undiciFetch(url, { ...options, dispatcher: item.agent });
+        } catch (err) {
+            lastError = err;
+            if (attempt < maxRetries - 1) {
+                console.warn(`[PROXY FAILOVER] ${url} failed on proxy ${item.masked}: ${err.message}. Retrying next proxy...`);
+            }
+        }
+    }
+    throw lastError;
 };
 
 const app = express();
@@ -418,18 +440,20 @@ app.get('/api/ip', async (req, res) => {
         res.json({
             status: "success",
             outbound_ip: data.ip,
-            proxy_active: proxyActive,
-            proxy_configured: !!(process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL || process.env.PROXY_HOST || process.env.PROXY_IP),
-            proxy_url_used: proxyUrlUsed,
+            proxy_active: proxyPool.length > 0,
+            proxy_configured: !!rawProxyInput,
+            pool_size: proxyPool.length,
+            proxies_configured: proxyPool.map(p => p.masked),
             proxy_error: proxyError
         });
     } catch (e) {
         res.status(500).json({
             status: "error",
             message: e.message,
-            proxy_active: proxyActive,
-            proxy_configured: !!(process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL || process.env.PROXY_HOST || process.env.PROXY_IP),
-            proxy_url_used: proxyUrlUsed,
+            proxy_active: proxyPool.length > 0,
+            proxy_configured: !!rawProxyInput,
+            pool_size: proxyPool.length,
+            proxies_configured: proxyPool.map(p => p.masked),
             proxy_error: proxyError
         });
     }
