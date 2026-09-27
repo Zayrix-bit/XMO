@@ -15,18 +15,55 @@ const { Readable, pipeline } = require('stream');
 dotenv.config();
 
 // Configure Outbound Proxy (HTTP/HTTPS/SOCKS) if defined in env (e.g. Hugging Face Secrets)
+const { ProxyAgent, fetch: undiciFetch } = require('undici');
+
+let proxyAgent = null;
 let proxyActive = false;
-const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL;
-if (proxyUrl) {
+let proxyError = null;
+let proxyUrlUsed = null;
+
+let rawProxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL;
+if (!rawProxyUrl && (process.env.PROXY_HOST || process.env.PROXY_IP)) {
+    const host = process.env.PROXY_HOST || process.env.PROXY_IP;
+    const port = process.env.PROXY_PORT || '80';
+    const user = process.env.PROXY_USER || process.env.PROXY_USERNAME;
+    const pass = process.env.PROXY_PASS || process.env.PROXY_PASSWORD;
+    if (user && pass) {
+        rawProxyUrl = `http://${user}:${pass}@${host}:${port}`;
+    } else {
+        rawProxyUrl = `http://${host}:${port}`;
+    }
+}
+
+if (rawProxyUrl) {
+    let formatted = rawProxyUrl.trim();
+    if (!formatted.startsWith('http://') && !formatted.startsWith('https://') && !formatted.startsWith('socks5://')) {
+        formatted = `http://${formatted}`;
+    }
     try {
-        const { ProxyAgent, setGlobalDispatcher } = require('undici');
-        setGlobalDispatcher(new ProxyAgent(proxyUrl));
+        proxyAgent = new ProxyAgent(formatted);
         proxyActive = true;
-        console.log(`[PROXY] Active: Routing all outbound scraper traffic through proxy`);
+        try {
+            const p = new URL(formatted);
+            if (p.password) p.password = '***';
+            proxyUrlUsed = p.toString();
+        } catch (_) {
+            proxyUrlUsed = 'configured';
+        }
+        console.log(`[PROXY] Active: Routing all scraper outbound requests through proxy (${proxyUrlUsed})`);
     } catch (e) {
+        proxyError = e.message;
         console.warn(`[PROXY] Failed to initialize ProxyAgent:`, e.message);
     }
 }
+
+// Scraper fetch helper: routes external scraper calls through proxy when available
+const scraperFetch = (url, options = {}) => {
+    if (proxyAgent) {
+        return undiciFetch(url, { ...options, dispatcher: proxyAgent });
+    }
+    return fetch(url, options);
+};
 
 const app = express();
 app.set('trust proxy', 1); // Essential for Hugging Face Spaces reverse proxy
@@ -242,8 +279,8 @@ async function fetchHtmlAxios(url, timeoutMs = 4500) {
         const domain = new URL(url).hostname;
         const headers = getHeaders(domain);
         
-        // Use native fetch with timeout signal
-        const res = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(timeoutMs) });
+        // Use native fetch with timeout signal (routed through proxy if active)
+        const res = await scraperFetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(timeoutMs) });
         
         // Capture and update cookies from response to maintain session state
         const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
@@ -368,16 +405,25 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/ip', async (req, res) => {
     try {
-        const response = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(4000) });
+        const response = await scraperFetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(6000) });
         const data = await response.json();
         res.json({
             status: "success",
             outbound_ip: data.ip,
             proxy_active: proxyActive,
-            proxy_configured: !!(process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL)
+            proxy_configured: !!(process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL || process.env.PROXY_HOST || process.env.PROXY_IP),
+            proxy_url_used: proxyUrlUsed,
+            proxy_error: proxyError
         });
     } catch (e) {
-        res.status(500).json({ status: "error", message: e.message, proxy_active: proxyActive });
+        res.status(500).json({
+            status: "error",
+            message: e.message,
+            proxy_active: proxyActive,
+            proxy_configured: !!(process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.PROXY_URL || process.env.PROXY_HOST || process.env.PROXY_IP),
+            proxy_url_used: proxyUrlUsed,
+            proxy_error: proxyError
+        });
     }
 });
 
@@ -687,7 +733,7 @@ app.get('/api/proxy', async (req, res) => {
             proxyHeaders['Range'] = req.headers.range;
         }
 
-        const response = await fetch(url, { headers: proxyHeaders });
+        const response = await scraperFetch(url, { headers: proxyHeaders });
 
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -743,7 +789,7 @@ app.get('/api/hls-proxy', async (req, res) => {
         proxyHeaders['Origin'] = `https://${refererDomain}`;
         proxyHeaders['Referer'] = `https://${refererDomain}/`;
 
-        const response = await fetch(url, { headers: proxyHeaders });
+        const response = await scraperFetch(url, { headers: proxyHeaders });
         let content = await response.text();
         const contentType = response.headers.get('content-type') || 'application/vnd.apple.mpegurl';
 
@@ -793,7 +839,7 @@ app.get('/api/hls-proxy', async (req, res) => {
             res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
             res.send(rewritten.join('\n'));
         } else {
-            const streamRes = await fetch(url, { headers: proxyHeaders });
+            const streamRes = await scraperFetch(url, { headers: proxyHeaders });
             res.setHeader('Access-Control-Allow-Origin', '*');
             ['content-type', 'content-length'].forEach(h => {
                 const val = streamRes.headers.get(h);
