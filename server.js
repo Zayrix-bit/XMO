@@ -1,3 +1,11 @@
+// Polyfill for undici compatibility on Node 20 runtimes (fixes webidl.util.markAsUncloneable is not a function)
+try {
+    const workerThreads = require('node:worker_threads');
+    if (typeof workerThreads.markAsUncloneable !== 'function') {
+        workerThreads.markAsUncloneable = () => {};
+    }
+} catch (_) {}
+
 // Prevent container crashes on Hugging Face from unhandled rejections or socket aborts
 process.on('uncaughtException', (err) => {
     console.error('[CRASH PREVENTED] Uncaught Exception:', err.message);
