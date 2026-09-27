@@ -23,13 +23,14 @@ const _USER_AGENTS = [
 ];
 
 const XHAMSTER_DOMAINS = [
+    'xhamster5.com',
+    'xhamster18.com',
+    'xhamster46.desi',
+    'xhamster46.com',
     'xhamster.com',
     'xhamster.desi',
     'xhamster2.com',
-    'xhamster3.com',
-    'xhamster46.com',
-    'xhamster5.com',
-    'xhamster18.com'
+    'xhamster3.com'
 ];
 
 let globalCookies = {};
@@ -214,13 +215,13 @@ function parseVideoList(pageData) {
 
 // Removed unused sleep function
 
-async function fetchHtmlAxios(url) {
+async function fetchHtmlAxios(url, timeoutMs = 4500) {
     try {
         const domain = new URL(url).hostname;
         const headers = getHeaders(domain);
         
-        // Use native fetch to be lightweight
-        const res = await fetch(url, { headers, redirect: 'follow' });
+        // Use native fetch with timeout signal to prevent hanging on ISP-blocked domains
+        const res = await fetch(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(timeoutMs) });
         
         // Capture and update cookies from response to maintain session state
         const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
@@ -239,15 +240,20 @@ async function fetchHtmlAxios(url) {
 
 async function fetchWithFallback(path, useHttps = true) {
     const protocol = useHttps ? 'https' : 'http';
-    const allDomains = [...XHAMSTER_DOMAINS].sort(() => 0.5 - Math.random());
+    const workingDomains = ['xhamster5.com', 'xhamster18.com', 'xhamster46.desi', 'xhamster46.com'];
+    const otherDomains = ['xhamster.com', 'xhamster.desi', 'xhamster2.com', 'xhamster3.com'];
+    const allDomains = [
+        ...workingDomains.sort(() => 0.5 - Math.random()),
+        ...otherDomains.sort(() => 0.5 - Math.random())
+    ];
 
-    // Race the first 3 domains concurrently for maximum speed
-    const domainsToRace = allDomains.slice(0, 3);
+    // Race the first 2 domains concurrently for maximum speed
+    const domainsToRace = allDomains.slice(0, 2);
     console.log(`[AXIOS] Racing domains: ${domainsToRace.join(', ')} for ${path}`);
 
     const promises = domainsToRace.map(async (domain) => {
         const url = `${protocol}://${domain}${path}`;
-        const html = await fetchHtmlAxios(url);
+        const html = await fetchHtmlAxios(url, 4000);
         const pageData = extractPageData(html);
         const isCategories = path === '/categories' && pageData && Object.keys(pageData).length > 0;
         const vtp = findVideoThumbProps(pageData);
@@ -264,10 +270,10 @@ async function fetchWithFallback(path, useHttps = true) {
     } catch (e) {
         console.log(`[AXIOS] Fast race failed for ${path}. Falling back to sequential...`);
         // Fallback sequentially to the rest if the initial race failed
-        for (let domain of allDomains.slice(3)) {
+        for (let domain of allDomains.slice(2)) {
             try {
                 const url = `${protocol}://${domain}${path}`;
-                const html = await fetchHtmlAxios(url);
+                const html = await fetchHtmlAxios(url, 4000);
                 const pageData = extractPageData(html);
                 const isCategories = path === '/categories';
                 const vtp = findVideoThumbProps(pageData);
@@ -528,9 +534,24 @@ app.get('/api/video', cacheResponse(600), async (req, res) => {
 
     try {
         const parsedUrl = new URL(videoUrl);
-        const domain = parsedUrl.hostname;
-        const html = await fetchHtmlAxios(videoUrl);
-        const pageData = extractPageData(html);
+        let domain = parsedUrl.hostname;
+        let html = null;
+        let pageData = null;
+
+        try {
+            html = await fetchHtmlAxios(videoUrl, 4500);
+            pageData = extractPageData(html);
+        } catch (fetchErr) {
+            console.log(`[VIDEO] Direct fetch failed for ${videoUrl}, trying working fallback domains...`);
+            const fallbackResult = await fetchWithFallback(parsedUrl.pathname + parsedUrl.search);
+            if (fallbackResult.html) {
+                html = fallbackResult.html;
+                domain = fallbackResult.domain;
+                pageData = fallbackResult.pageData;
+            } else {
+                throw fetchErr;
+            }
+        }
 
         let videoTitle = 'Untitled Video';
         const titleMatch = html.match(/<h1[^>]*class="[^"]*with-player-container[^"]*"[^>]*>([\s\S]*?)<\/h1>/i) || html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
@@ -608,13 +629,19 @@ app.get('/api/proxy', async (req, res) => {
     if (!url) return res.status(400).send("Missing URL");
 
     try {
-        let refererDomain = 'xhamster.desi';
-        for (let d of XHAMSTER_DOMAINS) {
-            if (url.includes(d)) { refererDomain = d; break; }
+        let refererDomain = 'xhcdn.com';
+        const forceMatch = url.match(/referer=force,[^,]*?\.?([a-zA-Z0-9.-]+\.[a-zA-Z]+)/);
+        if (forceMatch && forceMatch[1]) {
+            refererDomain = forceMatch[1];
+        } else {
+            for (let d of XHAMSTER_DOMAINS) {
+                if (url.includes(d)) { refererDomain = d; break; }
+            }
         }
 
         const proxyHeaders = getHeaders(refererDomain);
         proxyHeaders['Origin'] = `https://${refererDomain}`;
+        proxyHeaders['Referer'] = `https://${refererDomain}/`;
         if (req.headers.range) {
             proxyHeaders['Range'] = req.headers.range;
         }
@@ -653,13 +680,19 @@ app.get('/api/hls-proxy', async (req, res) => {
     if (!url) return res.status(400).send("Missing URL");
 
     try {
-        let refererDomain = 'xhamster.desi';
-        for (let d of XHAMSTER_DOMAINS) {
-            if (url.includes(d)) { refererDomain = d; break; }
+        let refererDomain = 'xhcdn.com';
+        const forceMatch = url.match(/referer=force,[^,]*?\.?([a-zA-Z0-9.-]+\.[a-zA-Z]+)/);
+        if (forceMatch && forceMatch[1]) {
+            refererDomain = forceMatch[1];
+        } else {
+            for (let d of XHAMSTER_DOMAINS) {
+                if (url.includes(d)) { refererDomain = d; break; }
+            }
         }
 
         const proxyHeaders = getHeaders(refererDomain);
         proxyHeaders['Origin'] = `https://${refererDomain}`;
+        proxyHeaders['Referer'] = `https://${refererDomain}/`;
 
         const response = await fetch(url, { headers: proxyHeaders });
         let content = await response.text();
